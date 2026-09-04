@@ -1,0 +1,24 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "N64: Compile & Flash to X7",
+            "type": "shell",
+            "command": "flatpak-spawn --host distrobox enter n64-dev -T -- bash -c 'cd \"/home/deck/n64_test_project\" && make && TERM=xterm UNFLoader -l -d -r n64-demo.z64'",
+            "group": "none",
+            "problemMatcher": ["$gcc"],
+            "options": {
+                "env": {
+                    "TERM": "xterm"
+                }
+            }
+        },
+        {
+            "label": "N64: Clean Build",
+            "type": "shell",
+            "command": "flatpak-spawn --host distrobox enter n64-dev -T -- bash -c 'cd \"/home/deck/n64_test_project\" && make clean'",
+            "group": "none",
+            "problemMatcher": []
+        }
+    ]
+}

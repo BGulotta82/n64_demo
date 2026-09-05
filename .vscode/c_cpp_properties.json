@@ -1,0 +1,19 @@
+{
+    "configurations": [
+        {
+            "name": "N64 Libdragon",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/home/deck/n64_toolchain/**"
+            ],
+            "defines": [
+                "__N64__"
+            ],
+            "compilerPath": "/home/deck/n64_toolchain/bin/mips64-elf-gcc",
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "linux-gcc-mips"
+        }
+    ],
+    "version": 4
+}

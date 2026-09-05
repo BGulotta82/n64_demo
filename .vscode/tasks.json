@@ -2,6 +2,13 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "N64: Build ROM",
+            "type": "shell",
+            "command": "flatpak-spawn --host distrobox enter n64-dev -T -- bash -c 'cd \"/home/deck/n64_test_project\" && make'",
+            "group": "build",
+            "problemMatcher": ["$gcc"]
+        },
+        {
             "label": "N64: Compile & Flash to X7",
             "type": "shell",
             "command": "flatpak-spawn --host distrobox enter n64-dev -T -- bash -c 'cd \"/home/deck/n64_test_project\" && make && TERM=xterm UNFLoader -l -d -r n64-demo.z64'",
@@ -19,6 +26,28 @@
             "command": "flatpak-spawn --host distrobox enter n64-dev -T -- bash -c 'cd \"/home/deck/n64_test_project\" && make clean'",
             "group": "none",
             "problemMatcher": []
+        },
+        {
+            "label": "N64: Run in ares Emulator",
+            "type": "shell",
+            "command": "/bin/bash", // 👈 Tells VS Code exactly what terminal executable to look up
+            "args": [
+                "-c", // 👈 Evaluates everything below safely as a proper shell script stream
+                "flatpak-spawn --host setsid flatpak run --share=network dev.ares.ares --gdb-server=2159 /home/deck/n64_test_project/n64-demo.z64 & sleep 10 && tail -f /dev/null"
+            ],
+            "group": "none",
+            "isBackground": true,
+            "dependsOn": "N64: Build ROM",
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "."
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^.*$",
+                    "endsPattern": "Vulkan Enabled" 
+                }
+            }
         }
     ]
 }

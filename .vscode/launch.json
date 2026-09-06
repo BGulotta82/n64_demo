@@ -2,35 +2,30 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug N64 Game (Host Native)",
+      "name": "Attach to Ares (manual)",
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/build/n64-demo.elf",
-      "cwd": "${workspaceFolder}", 
-      "miDebuggerPath": "${workspaceFolder}/flatpak-fix.sh",
+      "cwd": "${workspaceFolder}",
+      "miDebuggerPath": "${workspaceFolder}/debug-gdb.sh",
+      "miDebuggerServerAddress": "localhost:2159",
       "MIMode": "gdb",
+      "externalConsole": false,
+      "stopAtEntry": false,
+      "sourceFileMap": {
+        "/": "${workspaceFolder}/",
+        "/home/deck/n64_test_project": "${workspaceFolder}"
+      },
       "setupCommands": [
-        { 
-          "text": "file ${workspaceFolder}/build/n64-demo.elf", 
-          "description": "Load symbol table explicitly",
-          "ignoreFailures": false 
-        },
-        { "text": "set auto-load safe-path /" },
-        { "text": "set gdb-features off", "ignoreFailures": true },
         { "text": "set architecture mips:4000" },
+        { "text": "set endian big" },
         { "text": "set mips mask-address off" },
-        { "text": "set stop-on-solib-events 0" },
         { "text": "set auto-solib-add off" },
-        { "text": "set breakpoint auto-hw on" },
-        { "text": "cd ${workspaceFolder}" },
+        { "text": "set stop-on-solib-events 0" },
+        { "text": "set substitute-path / ${workspaceFolder}" },
         { "text": "set substitute-path /home/deck/n64_test_project ${workspaceFolder}" },
-        
-        // 👇 FIXED: This tells the Flatpak instance of VS Code to escape out to your host desktop's Ares port
-        {
-          "text": "target remote localhost:2159",
-          "description": "Connect to Ares via Flatpak Host Interface Loop",
-          "ignoreFailures": false
-        }
+        { "text": "directory ${workspaceFolder}" },
+        { "text": "file ${workspaceFolder}/build/n64-demo.elf" }
       ]
     }
   ]

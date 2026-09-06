@@ -4,14 +4,14 @@
         {
             "label": "N64: Build ROM",
             "type": "shell",
-            "command": "flatpak-spawn --host distrobox enter n64-dev -T -- bash -c 'cd \"/home/deck/n64_test_project\" && make'",
+            "command": "cd /home/deck/n64_test_project && ./build.sh",
             "group": "build",
             "problemMatcher": ["$gcc"]
         },
         {
             "label": "N64: Compile & Flash to X7",
             "type": "shell",
-            "command": "flatpak-spawn --host distrobox enter n64-dev -T -- bash -c 'cd \"/home/deck/n64_test_project\" && make && TERM=xterm UNFLoader -l -d -r n64-demo.z64'",
+            "command": "cd /home/deck/n64_test_project && ./build.sh && TERM=xterm UNFLoader -l -d -r n64-demo.z64",
             "group": "none",
             "problemMatcher": ["$gcc"],
             "options": {
@@ -23,29 +23,29 @@
         {
             "label": "N64: Clean Build",
             "type": "shell",
-            "command": "flatpak-spawn --host distrobox enter n64-dev -T -- bash -c 'cd \"/home/deck/n64_test_project\" && make clean'",
+            "command": "flatpak-spawn --host distrobox enter n64-dev -T -- bash -lc 'cd \"/home/deck/n64_test_project\" && export N64_INST=/n64_toolchain && make clean'",
             "group": "none",
             "problemMatcher": []
         },
         {
             "label": "N64: Run in ares Emulator",
             "type": "shell",
-            "command": "/bin/bash", // 👈 Tells VS Code exactly what terminal executable to look up
-            "args": [
-                "-c", // 👈 Evaluates everything below safely as a proper shell script stream
-                "flatpak-spawn --host setsid flatpak run --share=network dev.ares.ares --gdb-server=2159 /home/deck/n64_test_project/n64-demo.z64 & sleep 10 && tail -f /dev/null"
-            ],
+            "command": "cd /home/deck/n64_test_project && ./build.sh && flatpak-spawn --host setsid flatpak run --share=network dev.ares.ares --gdb-server=2159 /home/deck/n64_test_project/n64-demo.z64",
             "group": "none",
             "isBackground": true,
-            "dependsOn": "N64: Build ROM",
             "problemMatcher": {
+                "owner": "n64",
+                "severity": "info",
                 "pattern": {
-                    "regexp": "."
+                    "regexp": ".*",
+                    "file": 1,
+                    "location": 2,
+                    "message": 3
                 },
                 "background": {
                     "activeOnStart": true,
-                    "beginsPattern": "^.*$",
-                    "endsPattern": "Vulkan Enabled" 
+                    "beginsPattern": ".*",
+                    "endsPattern": ".*"
                 }
             }
         }

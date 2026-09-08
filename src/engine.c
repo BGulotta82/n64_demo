@@ -13,4 +13,3 @@ void engine_update(game_state_t *state, float dt) {
     character_update(&state->player1, &state->input);
     state->frame++;
 }
-    

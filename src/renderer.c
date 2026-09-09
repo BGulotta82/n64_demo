@@ -20,7 +20,7 @@ void renderer_draw(const game_state_t *state) {
 
     // Draw in a white rectangle
     rdpq_set_mode_fill(RGBA32(0xff, 0xff, 0xff, 0));
-    rdpq_fill_rectangle((int)state->player1.x, (int)state->player1.y, (int)(state->player1.x + 8), (int)(state->player1.y + 8));
+    rdpq_fill_rectangle((int)state->player1.x, (int)state->player1.y, (int)(state->player1.x + 16), (int)(state->player1.y + 16));
 
     // Send frame buffer to display (TV)
     rdpq_detach_show();

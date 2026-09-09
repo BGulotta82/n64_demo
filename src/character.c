@@ -17,12 +17,19 @@ void character_init(character *character) {
 void character_update(character *character, input_state *input, float dt) {
     if (!character || !input) return;
 
+    // 1. Process Input & Friction Modifications
     apply_friction(character, input, dt);
-    handle_move_left(character, input);
-    handle_move_right(character, input);
-    handle_jump(character, input);
-    move_character(character);
-    apply_gravity(character);
+    handle_move_left(character, input, dt);
+    handle_move_right(character, input, dt);
+    handle_jump(character, input); // Triggers your JUMP_VELOCITY
+
+    // 2. Apply Environmental Forces over Time (THE FIX)
+    apply_gravity(character, dt);
+
+    // 3. Move the character position based on final velocities
+    move_character(character, dt);
+
+    // 4. Resolve Collisions and Reset Ground Flags
     check_grounded(character);
 }
 
@@ -67,12 +74,12 @@ void check_grounded(character *character)
     }
 }
 
-void apply_gravity(character *character)
+void apply_gravity(character *character, float dt)
 {
     // 1. Apply Gravity if in the air
     if (!character->is_grounded)
     {
-        character->vy += GRAVITY;
+        character->vy += GRAVITY * dt;
         if (character->vy > TERMINAL_VELOCITY)
         {
             character->vy = TERMINAL_VELOCITY;
@@ -80,28 +87,31 @@ void apply_gravity(character *character)
     }
 }
 
-void handle_move_left(character *character, input_state *input)
+void handle_move_right(character *character, input_state *input, float dt)
 {
-    if (input->active_actions & ACTION_MOVE_LEFT)
+    if (input->active_actions & ACTION_MOVE_RIGHT)
     {
-        if (character->is_grounded)
-            character->vx = -RUN_SPEED;
+        if (character->is_grounded) {
+            // Smoothly accelerate to max speed on the ground
+            character->vx = approach(character->vx, RUN_SPEED, GROUND_ACCEL * dt);
+        }
         else {
-            character->vx += -AIR_ACCEL;
-            if (character->vx < -RUN_SPEED) character->vx = -RUN_SPEED;                 
+            // Smoothly accelerate to max speed in the air, scaled by dt
+            character->vx = approach(character->vx, RUN_SPEED, AIR_ACCEL * dt);
         }
     }
 }
 
-void handle_move_right(character *character, input_state *input)
+void handle_move_left(character *character, input_state *input, float dt)
 {
-    if (input->active_actions & ACTION_MOVE_RIGHT)
+    if (input->active_actions & ACTION_MOVE_LEFT)
     {
-        if (character->is_grounded)
-            character->vx = RUN_SPEED;
+        if (character->is_grounded) {
+            // Moving left means target velocity is negative (-RUN_SPEED)
+            character->vx = approach(character->vx, -RUN_SPEED, GROUND_ACCEL * dt);
+        }
         else {
-            character->vx += AIR_ACCEL;
-            if (character->vx > RUN_SPEED) character->vx = RUN_SPEED;            
+            character->vx = approach(character->vx, -RUN_SPEED, AIR_ACCEL * dt);
         }
     }
 }
@@ -119,15 +129,15 @@ void handle_jump(character *character, input_state *input)
     }
         
     if (character->jump_buffer_frames > 0 && character->coyote_frames > 0) {
-        character->vy = JUMP_FORCE;
+        character->vy = JUMP_VELOCITY;
         character->is_grounded = 0;
         character->jump_buffer_frames = 0;
         character->coyote_frames = 0;
     }
 }
 
-void move_character(character *character)
+void move_character(character *character, float dt)
 {
-    character->x += character->vx;
-    character->y += character->vy;
+    character->x += character->vx * dt;
+    character->y += character->vy * dt;
 }

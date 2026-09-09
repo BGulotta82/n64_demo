@@ -2,9 +2,7 @@
 #include "constants.h"
 #include "level.h"
 #include "engine.h"
-#include <string.h>
 #include <math.h>
-#include <stdint.h>
 
 void character_init(character *character) {
     if(!character) return;

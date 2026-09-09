@@ -3,8 +3,8 @@
 
 #include "character.h"
 #include "input.h"
-
-#define MAX_PLAYERS 4
+#include "camera.h"
+#include "constants.h"
 
 typedef struct {
     int frame;

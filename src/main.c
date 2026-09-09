@@ -28,13 +28,15 @@ int main(void) {
 
         int player_x[MAX_PLAYERS];
         int player_y[MAX_PLAYERS];
+        bool player_active[MAX_PLAYERS];
 
         for (int i = 0; i < MAX_PLAYERS; i++) {
             player_x[i] = state.players[i].x;
             player_y[i] = state.players[i].y;
+            player_active[i] = state.players[i].active;
         }
 
-        camera_update(&camera, player_x, player_y, MAX_PLAYERS);
+        camera_update(&camera, player_x, player_y, player_active, MAX_PLAYERS);
         renderer_draw(&state);
     }
 }

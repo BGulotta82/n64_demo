@@ -5,9 +5,12 @@
 // 1. MUST BE #DEFINE: Used for grid tracking, array sizes, and math bounds
 // =========================================================================
 #define TILE_SIZE       (16)
-#define MAP_WIDTH       (20)
+#define MAP_WIDTH       (200)
 #define MAP_HEIGHT      (15)
 #define TOTAL_TILES     (MAP_WIDTH * MAP_HEIGHT)
+#define PLAYER_WIDTH    (16)
+#define PLAYER_HEIGHT   (16)
+#define MAX_PLAYERS     (4)
 
 // =========================================================================
 // 2. ALLOWED AS EXTERN: Purely used as mathematical data in physics loops

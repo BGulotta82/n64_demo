@@ -1,7 +1,8 @@
 #ifndef CAMERA_H
 #define CAMERA_H
 
-#include <stdint.h>
+#include "constants.h"
+#include <stdbool.h>
 
 typedef struct {
     int x;
@@ -13,6 +14,6 @@ typedef struct {
 } camera_t;
 
 void camera_init(camera_t *cam, int world_width, int world_height, int screen_width, int screen_height);
-void camera_update(camera_t *cam, int *player_x, int *player_y, int player_count);
+void camera_update(camera_t *cam, int *player_x, int *player_y, bool *player_active, int player_count);
 
 #endif

@@ -152,13 +152,10 @@ void handle_jump(character *character, input_state *input)
         character->coyote_frames = 0;
     }
 
+    bool jump_released = !(input->active_actions & ACTION_JUMP_HELD) || (input->active_actions & ACTION_JUMP_RELEASED);
 
-    // --- THE FIX: VARIABLE JUMP HEIGHT CONTROL ---
-    // If the player releases the jump button while still ascending...
-    if (!(input->active_actions & ACTION_JUMP_HELD) && !character->is_grounded && character->vy < 0.0f)
+    if (jump_released && !character->is_grounded && character->vy < 0.0f)
     {
-        // Define a minimum jump cut-off velocity (e.g., -60.0f pixels/sec)
-        // This ensures they don't freeze instantly but immediately start slowing down/falling
         const float MIN_JUMP_UPWARD_VELOCITY = -60.0f; 
 
         if (character->vy < MIN_JUMP_UPWARD_VELOCITY) {

@@ -7,7 +7,8 @@ typedef enum {
     ACTION_MOVE_RIGHT = 1 << 1,
     ACTION_JUMP       = 1 << 2,
     ACTION_JUMP_HELD  = 1 << 3,
-    ACTION_ATTACK     = 1 << 4
+    ACTION_JUMP_RELEASED = 1 << 4,
+    ACTION_ATTACK     = 1 << 5
 } game_action;
 
 typedef struct {

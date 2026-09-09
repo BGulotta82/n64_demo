@@ -96,7 +96,8 @@ void handle_jump(character *character, input_state *input)
     { 
         character->is_grounded = false;
         character->jump_buffer_frames = JUMP_BUFFER_MAX; // Reset jump buffer when jump is pressed
-    } else if (character->jump_buffer_frames > 0) {
+    } 
+    else if (character->jump_buffer_frames > 0) {
         character->jump_buffer_frames--;
     }
         

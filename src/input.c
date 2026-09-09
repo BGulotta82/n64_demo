@@ -21,6 +21,7 @@ void input_update(input_state *state) {
     if (raw.btn.d_left) state->active_actions |= ACTION_MOVE_LEFT;
     if (raw.btn.d_right) state->active_actions |= ACTION_MOVE_RIGHT;
     if (pressed.a && !held.a) state->active_actions |= ACTION_JUMP;
+    if (pressed.a) state->active_actions |= ACTION_JUMP_HELD;
     if (pressed.z && !held.z) state->active_actions |= ACTION_ATTACK;
 
     /* normalized analog stick values (-85..85) to -1.0..1.0 */

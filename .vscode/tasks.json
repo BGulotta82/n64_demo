@@ -32,7 +32,7 @@
             "type": "shell",
             "command": "cd /home/deck/n64_test_project && ./build.sh && flatpak-spawn --host setsid flatpak run --share=network dev.ares.ares --gdb-server=2159 /home/deck/n64_test_project/n64-demo.z64",
             "group": "none",
-            "isBackground": true,
+            "isBackground": false,
             "problemMatcher": {
                 "owner": "n64",
                 "severity": "info",

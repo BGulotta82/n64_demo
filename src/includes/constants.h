@@ -1,7 +1,17 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
-// Physics Constants (Adjust these to tweak the "feel" of the jump)
+// =========================================================================
+// 1. MUST BE #DEFINE: Used for grid tracking, array sizes, and math bounds
+// =========================================================================
+#define TILE_SIZE       (16)
+#define MAP_WIDTH       (20)
+#define MAP_HEIGHT      (15)
+#define TOTAL_TILES     (MAP_WIDTH * MAP_HEIGHT)
+
+// =========================================================================
+// 2. ALLOWED AS EXTERN: Purely used as mathematical data in physics loops
+// =========================================================================
 extern const float GRAVITY;
 extern const float JUMP_VELOCITY;
 extern const float TERMINAL_VELOCITY;
@@ -16,4 +26,5 @@ extern const float JUMP_HEIGHT;
 extern const float TIME_TO_PEAK;
 extern const float GROUND_ACCEL;
 extern const float TURN_MULTIPLIER;
+
 #endif // CONSTANTS_H

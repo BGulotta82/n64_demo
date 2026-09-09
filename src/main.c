@@ -1,20 +1,22 @@
 #include "engine.h"
 #include "renderer.h"
 #include "main.h"
+#include "level.h"
 #include <libdragon.h>
 
 float calculate_delta_time(unsigned long long *last_ticks);
 
 int main(void) {
     game_state_t state;
-
+    console_set_render_mode(RENDER_MANUAL);
     timer_init();
     engine_init(&state);
     renderer_init();
-
+    dfs_init(DFS_DEFAULT_LOCATION); 
+    load_level_binary("/level_test.bin"); 
+    
     // Track the precise time of the previous frame
     unsigned long long last_ticks = timer_ticks();
-
 
     while (1) {
 

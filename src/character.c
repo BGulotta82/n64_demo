@@ -1,7 +1,9 @@
 #include "character.h"
 #include "constants.h"
+#include "level.h"
 #include <string.h>
 #include <math.h>
+#include <stdint.h>
 
 void character_init(character *character) {
     if(!character) return;
@@ -56,6 +58,33 @@ void apply_friction(character *character, input_state *input, float dt)
 
 void check_grounded(character *character)
 {
+    // 1. Calculate the tile position right beneath the character's feet
+    // We check the center-bottom of the 16x16 bounding box
+    int tile_x = (int)(character->x + 8.0f) / TILE_SIZE;
+    int tile_y = (int)(character->y + 16.0f) / TILE_SIZE;
+
+    // 2. Look up the tile value from our binary matrix array
+    uint8_t tile_below = get_tile_at(tile_x, tile_y);
+
+    if (tile_below == 1) // If it's a solid block layout point
+    {
+        // Snap the character perfectly on top of the tile boundary edge pixel
+        character->y = (float)(tile_y * TILE_SIZE) - 16.0f;
+        character->vy = 0.0f;
+        character->is_grounded = true;
+        character->coyote_frames = COYOTE_MAX;
+    } 
+    else
+    {
+        character->is_grounded = false;
+        if (character->coyote_frames > 0) {
+            character->coyote_frames--;
+        }
+    }
+}
+
+/*void check_grounded(character *character)
+{
     // 5. Basic Environment Collision (Floor Check)
     // Replace this with your actual tilemap/hitbox collision routine
     if (character->y >= FLOOR_Y)
@@ -72,7 +101,7 @@ void check_grounded(character *character)
             character->coyote_frames--; // Count down while in mid-air
         }
     }
-}
+}*/
 
 void apply_gravity(character *character, float dt)
 {

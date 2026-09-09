@@ -1,5 +1,6 @@
 #ifndef INPUT_H
 #define INPUT_H
+#include <libdragon.h>
 
 typedef enum {
     ACTION_NONE     = 0,
@@ -18,6 +19,6 @@ typedef struct {
 } input_state;
 
 void input_init(input_state *state);
-void input_update(input_state *state);
+bool input_update(input_state *state, joypad_port_t port);
 
 #endif // INPUT_H

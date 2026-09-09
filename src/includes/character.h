@@ -9,6 +9,7 @@ typedef struct {
     bool is_grounded;
     int coyote_frames;       // Time allowed to jump AFTER leaving a ledge
     int jump_buffer_frames;  // Time to remember a jump press BEFORE touching down
+    bool active;               // Is this character active in the game world?
 } character;
 
 void character_init(character *character);

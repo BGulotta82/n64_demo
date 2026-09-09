@@ -10,13 +10,14 @@ void input_init(input_state *state) {
     state->move_y = 0.0f;
 }
 
-void input_update(input_state *state) {
-    if (!state) return;
+bool input_update(input_state *state, joypad_port_t port) {
+    if (!state) return false;
+    
     joypad_poll();
-    joypad_inputs_t raw = joypad_get_inputs(0);
-    joypad_buttons_t pressed = joypad_get_buttons(0);
-    joypad_buttons_t held = joypad_get_buttons_held(0);
-    joypad_buttons_t released = joypad_get_buttons_released(0);
+    joypad_inputs_t raw = joypad_get_inputs(port);
+    joypad_buttons_t pressed = joypad_get_buttons(port);
+    joypad_buttons_t held = joypad_get_buttons_held(port);
+    joypad_buttons_t released = joypad_get_buttons_released(port);
 
     state->active_actions = ACTION_NONE;
     if (raw.btn.d_left) state->active_actions |= ACTION_MOVE_LEFT;
@@ -29,4 +30,6 @@ void input_update(input_state *state) {
     /* normalized analog stick values (-85..85) to -1.0..1.0 */
     state->move_x = (float)raw.stick_x / 85.0f;
     state->move_y = (float)raw.stick_y / 85.0f;
+
+    return pressed.start; // Return true if the start button was pressed
 }

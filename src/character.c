@@ -1,6 +1,7 @@
 #include "character.h"
 #include "constants.h"
 #include "level.h"
+#include "engine.h"
 #include <string.h>
 #include <math.h>
 #include <stdint.h>
@@ -16,25 +17,62 @@ void character_init(character *character) {
     character->jump_buffer_frames = 0;
 }
 
-void character_update(character *character, input_state *input, float dt) {
-    if (!character || !input) return;
+void character_update(character *self, character *players, input_state *input, float dt) {
+    if (!self || !input || !self->active) return;
 
     // 1. Process Input & Friction Modifications
-    apply_friction(character, input, dt);
-    handle_move_left(character, input, dt);
-    handle_move_right(character, input, dt);
-    handle_jump(character, input); // Triggers your JUMP_VELOCITY
+    apply_friction(self, input, dt);
+    handle_move_left(self, input, dt);
+    handle_move_right(self, input, dt);
+    handle_jump(self, input); // Triggers your JUMP_VELOCITY
 
     // 2. Apply Environmental Forces over Time (THE FIX)
-    apply_gravity(character, dt);
+    apply_gravity(self, dt);
 
     // 3. Move the character position based on final velocities
-    move_character(character, dt);
+    move_character(self, dt);
 
     // 4. Resolve Collisions and Reset Ground Flags
-    check_grounded(character);
-    check_wall_collision(character);
-    check_ceiling_collision(character);
+    check_grounded(self);
+    check_wall_collision(self);
+    check_ceiling_collision(self);
+    check_character_collisions(self, players);
+}
+
+void check_character_collisions(character *self, character *players) {
+    if (!self || !players) return;
+
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        character *other = &players[i];
+        if (other == self || !other->active) continue;
+
+        // Simple AABB collision detection
+        if (self->x < other->x + 16 && self->x + 16 > other->x &&
+            self->y < other->y + 16 && self->y + 16 > other->y) {
+            // Collision detected, resolve by pushing characters apart
+            float overlap_x = fminf(self->x + 16 - other->x, other->x + 16 - self->x);
+            float overlap_y = fminf(self->y + 16 - other->y, other->y + 16 - self->y);
+
+            if (overlap_x < overlap_y) {
+                // Resolve horizontally
+                if (self->x < other->x) {
+                    self->x -= overlap_x;
+                } else {
+                    self->x += overlap_x;
+                }
+                self->vx = 0.0f; // Stop horizontal movement on collision
+            } else {
+                // Resolve vertically
+                if (self->y < other->y) {
+                    self->y -= overlap_y;
+                    self->is_grounded = true; // Land on top of the other character
+                } else {
+                    self->y += overlap_y;
+                }
+                self->vy = 0.0f; // Stop vertical movement on collision
+            }
+        }
+    }
 }
 
 float approach(float current, float target, float step) {

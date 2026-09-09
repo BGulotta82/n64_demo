@@ -13,11 +13,12 @@ typedef struct {
 } character;
 
 void character_init(character *character);
-void character_update(character *character, input_state *input, float dt);
+void character_update(character *self, character *players, input_state *input, float dt);
 void check_no_input(input_state *input, character *character);
 void check_grounded(character *character);
 void check_wall_collision(character *character);
 void check_ceiling_collision(character *character);
+void check_character_collisions(character *self, character *players);
 float approach(float current, float target, float step);
 void apply_gravity(character *character, float dt);
 void apply_friction(character *character, input_state *input, float dt);

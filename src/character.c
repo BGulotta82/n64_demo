@@ -33,6 +33,8 @@ void character_update(character *character, input_state *input, float dt) {
 
     // 4. Resolve Collisions and Reset Ground Flags
     check_grounded(character);
+    check_wall_collision(character);
+    check_ceiling_collision(character);
 }
 
 float approach(float current, float target, float step) {
@@ -83,25 +85,45 @@ void check_grounded(character *character)
     }
 }
 
-/*void check_grounded(character *character)
+void check_wall_collision(character *character)
 {
-    // 5. Basic Environment Collision (Floor Check)
-    // Replace this with your actual tilemap/hitbox collision routine
-    if (character->y >= FLOOR_Y)
-    {
-        character->y = FLOOR_Y;
-        character->vy = 0.0f;
-        character->is_grounded = true;
-        character->coyote_frames = COYOTE_MAX;
-    } 
-    else
-    {
-        character->is_grounded = false;
-        if (character->coyote_frames > 0) {
-            character->coyote_frames--; // Count down while in mid-air
+    // 1. Calculate the tile position at the character's left and right edges
+    int tile_left_x = (int)(character->x) / TILE_SIZE;
+    int tile_right_x = (int)(character->x + 16.0f) / TILE_SIZE;
+    int tile_y = (int)(character->y + 8.0f) / TILE_SIZE; // Check mid-height for horizontal collisions
+
+    // 2. Look up the tile values from our binary matrix array
+    uint8_t tile_left = get_tile_at(tile_left_x, tile_y);
+    uint8_t tile_right = get_tile_at(tile_right_x, tile_y);
+
+    // 3. Resolve collisions with solid blocks
+    if (tile_left == 1) {
+        character->x = (float)((tile_left_x + 1) * TILE_SIZE);
+        character->vx = 0.0f;
+    }
+    if (tile_right == 1) {
+        character->x = (float)(tile_right_x * TILE_SIZE - 16.0f);
+        character->vx = 0.0f;
+    }
+}
+
+void check_ceiling_collision(character *character)
+{
+    // 1. Calculate the tile position at the character's top edge
+    int tile_x = (int)(character->x + 8.0f) / TILE_SIZE; // Check mid-width for vertical collisions
+    int tile_top_y = (int)(character->y) / TILE_SIZE;
+
+    // 2. Look up the tile value from our binary matrix array
+    uint8_t tile_above = get_tile_at(tile_x, tile_top_y);
+
+    // 3. Resolve collision with solid blocks
+    if (tile_above == 1) {
+        character->y = (float)((tile_top_y + 1) * TILE_SIZE);
+        if (character->vy < 0.0f) {
+            character->vy = 0.0f;
         }
     }
-}*/
+}
 
 void apply_gravity(character *character, float dt)
 {

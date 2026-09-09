@@ -92,12 +92,20 @@ void handle_move_right(character *character, input_state *input, float dt)
     if (input->active_actions & ACTION_MOVE_RIGHT)
     {
         if (character->is_grounded) {
-            // Smoothly accelerate to max speed on the ground
-            character->vx = approach(character->vx, RUN_SPEED, GROUND_ACCEL * dt);
+            // CHECK FOR TURNAROUND: Player is moving LEFT (< 0) but holding RIGHT
+            if (character->vx < 0.0f) {
+                character->vx = approach(character->vx, RUN_SPEED, GROUND_ACCEL * TURN_MULTIPLIER * dt);
+            } else {
+                character->vx = approach(character->vx, RUN_SPEED, GROUND_ACCEL * dt);
+            }
         }
         else {
-            // Smoothly accelerate to max speed in the air, scaled by dt
-            character->vx = approach(character->vx, RUN_SPEED, AIR_ACCEL * dt);
+            // Air turnaround (optional: can keep it lower than ground for loose air control)
+            if (character->vx < 0.0f) {
+                character->vx = approach(character->vx, RUN_SPEED, AIR_ACCEL * 1.5f * dt);
+            } else {
+                character->vx = approach(character->vx, RUN_SPEED, AIR_ACCEL * dt);
+            }
         }
     }
 }
@@ -107,11 +115,20 @@ void handle_move_left(character *character, input_state *input, float dt)
     if (input->active_actions & ACTION_MOVE_LEFT)
     {
         if (character->is_grounded) {
-            // Moving left means target velocity is negative (-RUN_SPEED)
-            character->vx = approach(character->vx, -RUN_SPEED, GROUND_ACCEL * dt);
+            // CHECK FOR TURNAROUND: Player is moving RIGHT (> 0) but holding LEFT
+            if (character->vx > 0.0f) {
+                character->vx = approach(character->vx, -RUN_SPEED, GROUND_ACCEL * TURN_MULTIPLIER * dt);
+            } else {
+                character->vx = approach(character->vx, -RUN_SPEED, GROUND_ACCEL * dt);
+            }
         }
         else {
-            character->vx = approach(character->vx, -RUN_SPEED, AIR_ACCEL * dt);
+            // Air turnaround
+            if (character->vx > 0.0f) {
+                character->vx = approach(character->vx, -RUN_SPEED, AIR_ACCEL * 1.5f * dt);
+            } else {
+                character->vx = approach(character->vx, -RUN_SPEED, AIR_ACCEL * dt);
+            }
         }
     }
 }

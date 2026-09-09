@@ -15,4 +15,5 @@ extern const float AIR_DRAG;
 extern const float JUMP_HEIGHT;
 extern const float TIME_TO_PEAK;
 extern const float GROUND_ACCEL;
+extern const float TURN_MULTIPLIER;
 #endif // CONSTANTS_H

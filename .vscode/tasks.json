@@ -48,6 +48,16 @@
                     "endsPattern": ".*"
                 }
             }
+        },
+        {
+            "label": "N64: Convert JSON Levels to BIN",
+            "type": "shell",
+            "command": "python3 /home/deck/n64_test_project/scripts/convert_levels_to_bin.py",
+            "options": {
+                "cwd": "/home/deck/n64_test_project"
+            },
+            "group": "build",
+            "problemMatcher": []
         }
     ]
 }

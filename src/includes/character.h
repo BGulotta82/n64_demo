@@ -5,10 +5,18 @@
 
 typedef struct {
     float x, y;
-    float vx;
-    bool is_jumping;
+    float vx, vy;
+    bool is_grounded;
+    int coyote_frames;       // Time allowed to jump AFTER leaving a ledge
+    int jump_buffer_frames;  // Time to remember a jump press BEFORE touching down
 } character;
 
 void character_init(character *character);
 void character_update(character *character, input_state *input);
+void check_grounded(character *character);
+void apply_gravity(character *character);
+void move_character(character *character);
+void handle_move_left(character *character, input_state *input);
+void handle_move_right(character *character, input_state *input);
+void handle_jump(character *character, input_state *input);
 #endif // CHARACTER_H

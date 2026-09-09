@@ -5,7 +5,6 @@
 void input_init(input_state *state) {
     if (!state) return;
     joypad_init();
-    memset(state, 0, sizeof(*state));
     state->active_actions = ACTION_NONE;
     state->move_x = 0.0f;
     state->move_y = 0.0f;

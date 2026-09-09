@@ -44,30 +44,33 @@ void check_character_collisions(character *self, character *players) {
         character *other = &players[i];
         if (other == self || !other->active) continue;
 
-        // Simple AABB collision detection
-        if (self->x < other->x + 16 && self->x + 16 > other->x &&
-            self->y < other->y + 16 && self->y + 16 > other->y) {
-            // Collision detected, resolve by pushing characters apart
-            float overlap_x = fminf(self->x + 16 - other->x, other->x + 16 - self->x);
-            float overlap_y = fminf(self->y + 16 - other->y, other->y + 16 - self->y);
+        if (self->x < other->x + 16 &&
+            self->x + 16 > other->x &&
+            self->y < other->y + 16 &&
+            self->y + 16 > other->y) {
+
+            float overlap_x = fminf(self->x + 16.0f - other->x, other->x + 16.0f - self->x);
+            float overlap_y = fminf(self->y + 16.0f - other->y, other->y + 16.0f - self->y);
 
             if (overlap_x < overlap_y) {
-                // Resolve horizontally
+                // Side collision
                 if (self->x < other->x) {
                     self->x -= overlap_x;
                 } else {
                     self->x += overlap_x;
                 }
-                self->vx = 0.0f; // Stop horizontal movement on collision
+                self->vx = 0.0f;
             } else {
-                // Resolve vertically
-                if (self->y < other->y) {
-                    self->y -= overlap_y;
-                    self->is_grounded = true; // Land on top of the other character
-                } else {
-                    self->y += overlap_y;
+                // Vertical collision
+                if (self->y < other->y && self->vy >= 0.0f) {
+                    self->y = other->y - 16.0f;
+                    self->vy = 0.0f;
+                    self->is_grounded = true;
+                    self->coyote_frames = COYOTE_MAX;
+                } else if (self->y > other->y && self->vy < 0.0f) {
+                    self->y = other->y + 16.0f;
+                    self->vy = 0.0f;
                 }
-                self->vy = 0.0f; // Stop vertical movement on collision
             }
         }
     }

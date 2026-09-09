@@ -10,4 +10,6 @@ extern const int COYOTE_MAX;
 extern const int JUMP_BUFFER_MAX;
 extern const float RUN_SPEED;
 extern const float AIR_ACCEL;
+extern const float GROUND_DRAG;
+extern const float AIR_DRAG;
 #endif // CONSTANTS_H

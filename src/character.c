@@ -1,10 +1,11 @@
 #include "character.h"
 #include "constants.h"
 #include <string.h>
+#include <math.h>
 
 void character_init(character *character) {
     if(!character) return;
-    character->x = 0.0f;
+    character->x = 20.0f;
     character->y = 150.0f;
     character->vx = 0.0f;
     character->vy = 0.0f;
@@ -13,21 +14,37 @@ void character_init(character *character) {
     character->jump_buffer_frames = 0;
 }
 
-void character_update(character *character, input_state *input) {
+void character_update(character *character, input_state *input, float dt) {
     if (!character || !input) return;
 
-    // Apply physics calculations...
-    if (input->active_actions == ACTION_NONE)
-    {
-        character->vx = 0.0f; // Stop horizontal movement if no input
-    }
-
+    apply_friction(character, input, dt);
     handle_move_left(character, input);
     handle_move_right(character, input);
     handle_jump(character, input);
     move_character(character);
     apply_gravity(character);
     check_grounded(character);
+}
+
+float approach(float current, float target, float step) {
+    if (fabsf(target - current) <= step) {
+        return target;
+    }
+    return current + (target > current ? step : -step);
+}
+
+void apply_friction(character *character, input_state *input, float dt)
+{
+    if (input->active_actions & ACTION_MOVE_LEFT || input->active_actions & ACTION_MOVE_RIGHT) 
+        return;
+
+    if (character->is_grounded) {
+        // Stops the player quickly on the ground
+        character->vx = approach(character->vx, 0, GROUND_DRAG * dt);
+    } else {
+        // Gently shaves off a bit of forward speed in mid-air
+        character->vx = approach(character->vx, 0, AIR_DRAG * dt);
+    }
 }
 
 void check_grounded(character *character)

@@ -7,7 +7,7 @@ extern camera_t camera;
 sprite_t* tilesheet;
 
 void renderer_init(void) {
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
+    display_init(RESOLUTION_640x480, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_DISABLED);
     rdpq_init();
     tilesheet  = sprite_load("rom:/tiles.sprite");
 }
@@ -48,8 +48,8 @@ void draw_level() {
 
     int start_x = camera.x / TILE_SIZE;
     int start_y = camera.y / TILE_SIZE;
-    int end_x = (camera.x + 320) / TILE_SIZE + 1;
-    int end_y = (camera.y + 240) / TILE_SIZE + 1;
+    int end_x = (camera.x + SCREEN_WIDTH) / TILE_SIZE + 1;
+    int end_y = (camera.y + SCREEN_HEIGHT) / TILE_SIZE + 1;
 
     for (int y = start_y; y < end_y; y++) {
         for (int x = start_x; x < end_x; x++) {

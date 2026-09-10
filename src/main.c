@@ -17,7 +17,7 @@ int main(void) {
     engine_init(&state);
     renderer_init();
     load_level_binary("/level_test.bin");
-    camera_init(&camera, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE, 320, 240);
+    camera_init(&camera, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     unsigned long long last_ticks = timer_ticks();
 

@@ -4,10 +4,14 @@
 #include "camera.h"
 
 extern camera_t camera;
+sprite_t* tilesheet;
 
 void renderer_init(void) {
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
     rdpq_init();
+    tilesheet  = sprite_load("rom:/tiles.sprite");
+    tilesheet->hslices = 2;
+    tilesheet->vslices = 1;
 }
 
 void renderer_draw(const game_state_t *state) {
@@ -43,7 +47,7 @@ void draw_character(const game_state_t *state) {
 }
 
 void draw_level() {
-    rdpq_set_mode_fill(RGBA32(0x80, 0x80, 0x80, 0));
+    rdpq_set_mode_copy(true);
 
     int start_x = camera.x / TILE_SIZE;
     int start_y = camera.y / TILE_SIZE;
@@ -58,11 +62,15 @@ void draw_level() {
 
             uint8_t tile_id = current_map[y * MAP_WIDTH + x];
 
-            if (tile_id == 1) {
-                int screen_x = x * TILE_SIZE - camera.x;
-                int screen_y = y * TILE_SIZE - camera.y;
-                rdpq_fill_rectangle(screen_x, screen_y, screen_x + TILE_SIZE, screen_y + TILE_SIZE);
-            }
+            int tile_index = tile_id - 1;
+            int tile_x = tile_index % tilesheet->hslices;
+            int tile_y = tile_index / tilesheet->hslices;
+
+            surface_t tile_surface = sprite_get_tile(tilesheet, tile_x, tile_y);
+
+            int screen_x = x * TILE_SIZE - camera.x;
+            int screen_y = y * TILE_SIZE - camera.y;
+            rdpq_tex_blit(&tile_surface, screen_x, screen_y, NULL);
         }
     }
 }

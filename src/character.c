@@ -107,7 +107,7 @@ void check_grounded(character *character)
     // 2. Look up the tile value from our binary matrix array
     uint8_t tile_below = get_tile_at(tile_x, tile_y);
 
-    if (tile_below == 1) // If it's a solid block layout point
+    if (tile_below == 2) // If it's a solid block layout point
     {
         // Snap the character perfectly on top of the tile boundary edge pixel
         character->y = (float)(tile_y * TILE_SIZE) - 16.0f;
@@ -136,11 +136,11 @@ void check_wall_collision(character *character)
     uint8_t tile_right = get_tile_at(tile_right_x, tile_y);
 
     // 3. Resolve collisions with solid blocks
-    if (tile_left == 1) {
+    if (tile_left == 2) {
         character->x = (float)((tile_left_x + 1) * TILE_SIZE);
         character->vx = 0.0f;
     }
-    if (tile_right == 1) {
+    if (tile_right == 2) {
         character->x = (float)(tile_right_x * TILE_SIZE - 16.0f);
         character->vx = 0.0f;
     }
@@ -156,7 +156,7 @@ void check_ceiling_collision(character *character)
     uint8_t tile_above = get_tile_at(tile_x, tile_top_y);
 
     // 3. Resolve collision with solid blocks
-    if (tile_above == 1) {
+    if (tile_above == 2) {
         character->y = (float)((tile_top_y + 1) * TILE_SIZE);
         if (character->vy < 0.0f) {
             character->vy = 0.0f;

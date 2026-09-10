@@ -12,10 +12,10 @@ int main(void) {
     game_state_t state;
 
     console_set_render_mode(RENDER_MANUAL);
+    dfs_init(DFS_DEFAULT_LOCATION);
     timer_init();
     engine_init(&state);
     renderer_init();
-    dfs_init(DFS_DEFAULT_LOCATION);
     load_level_binary("/level_test.bin");
     camera_init(&camera, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE, 320, 240);
 

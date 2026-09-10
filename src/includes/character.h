@@ -13,10 +13,14 @@
 extern float physics_constants[NUMBER_OF_CHARACTER_TYPES][9];
 
 typedef enum {
+    // PLAYER TYPES
     KNIGHT     = 0,
     ELF        = 1,
     WIZARD     = 2,
-    DWARF      = 3
+    DWARF      = 3,
+    // ENEMY TYPES
+    GOOMBA     = 4,
+    SKELETON   = 5
 } character_type;
 
 typedef enum {
@@ -46,7 +50,7 @@ typedef struct {
     float x, y;
     int coyote_frames;       // Time allowed to jump AFTER leaving a ledge
     int jump_buffer_frames;  // Time to remember a jump press BEFORE touching down
-    bool active, supported_by_player;               // Is this character active in the game world?
+    bool active, supported_by_player, is_enemy;               // Is this character active in the game world?
     character_type type;      // Type of character (e.g., KNIGHT, ELF, etc.)
     character_physics physics; // Physics properties for the character
 } character;
@@ -65,4 +69,5 @@ void handle_move_left(character *character, input_state *input, float dt);
 void handle_move_right(character *character, input_state *input, float dt);
 void move_character(character *character, float dt);
 void handle_jump(character *self, character *players, input_state *input);
+
  #endif // CHARACTER_H

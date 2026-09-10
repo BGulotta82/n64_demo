@@ -9,7 +9,13 @@ float physics_constants[NUMBER_OF_CHARACTER_TYPES][9] = {
     // WIZARD
     {2.5f, 140.0f, 1200.0f, 1200.0f, 550.0f, 190.0f, 32.0f, 0.26f, 400.0f},
     // DWARF
-    {2.8f, 145.0f, 1225.0f, 1175.0f, 575.0f, 185.0f, 34.0f, 0.25f, 400.0f}
+    {2.8f, 145.0f, 1225.0f, 1175.0f, 575.0f, 185.0f, 34.0f, 0.25f, 400.0f},
+      // --- ENEMY PHYSICS ---
+    // GOOMBA: Low max speed (60.0f), cannot jump high (0.0f jump height)
+    {1.0f, 60.0f,  800.0f,  900.0f,  200.0f,  100.0f,  0.0f,  0.30f, 400.0f},
+    // SKELETON: Fast (120.0f), high jumper (45.0f jump height)
+    {3.0f, 120.0f, 1100.0f, 1000.0f, 500.0f,  150.0f,  45.0f, 0.20f, 400.0f}
+
 };
 
 void character_init(character *character, character_type type) {
@@ -22,6 +28,12 @@ void character_init(character *character, character_type type) {
     character->y = 150.0f;
     character->coyote_frames = 0;
     character->jump_buffer_frames = 0;
+    
+    if (type >= 4) { 
+        character->is_enemy = true;
+    } else {
+        character->is_enemy = false;
+    }
 
     // initialize physics struct
     character->physics.vx = 0.0f;

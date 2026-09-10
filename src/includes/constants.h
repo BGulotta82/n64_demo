@@ -13,7 +13,8 @@
 #define PLAYER_WIDTH    (16.0f)
 #define PLAYER_HEIGHT   (32.0f)
 #define MAX_PLAYERS     (4)
-#define NUMBER_OF_CHARACTER_TYPES (4)
+#define MAX_ENEMIES     (50)
+#define NUMBER_OF_CHARACTER_TYPES (6)
 
 // 2. Input Buffers
 #define JUMP_BUFFER_MAX (5)

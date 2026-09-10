@@ -72,6 +72,21 @@ void engine_update(game_state_t *state, float dt) {
         }
     }
 
+    // 2. Update your enemies using simulated AI inputs
+    for (int i = 0; i < MAX_ENEMIES; i++) {
+        if (!state->enemies[i].active) continue;
+
+      // Create a local, lightweight input instance on the stack for this loop iteration
+        input_state simulated_input;
+        simulated_input.active_actions = 0; // Clear it to zero clean slate
+
+        simulate_enemy_ai(&state->enemies[i], state, &simulated_input);
+
+        //Run them through the exact same update system!
+        //Pass the player array down so enemies can physically interact with players
+        character_update(&state->enemies[i], state->players, &simulated_input, dt);
+    }
+
     state->frame++;
 }
 
@@ -114,6 +129,45 @@ void spawn_new_player(game_state_t *state, character_type type, int i)
             int offset = p1_moving_right ? -30 : 30; // spawn behind player 0 based on their movement direction
             state->players[i].x = state->players[0].x + offset;
             state->players[i].y = state->players[0].y;
+        }
+    }
+}
+
+void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state *dummy_input) {
+    dummy_input->active_actions = 0;
+    if (!enemy->active || !enemy->is_enemy) return;
+
+    // Direct behavior mapping via character_type enum
+    if (enemy->type == GOOMBA) {
+        // Goomba-style pacing logic
+        if (enemy->physics.state & MOVING_LEFT) {
+            dummy_input->active_actions |= ACTION_MOVE_LEFT;
+        } else {
+            dummy_input->active_actions |= ACTION_MOVE_RIGHT;
+        }
+
+        // Turn around if walking into a tile block
+        if (fabsf(enemy->physics.vx) < 0.01f && (enemy->physics.state & GROUNDED)) {
+            if (enemy->physics.state & MOVING_LEFT) {
+                enemy->physics.state &= ~MOVING_LEFT;
+                enemy->physics.state |= MOVING_RGHT;
+            } else {
+                enemy->physics.state &= ~MOVING_RGHT;
+                enemy->physics.state |= MOVING_LEFT;
+            }
+        }
+    } 
+    else if (enemy->type == SKELETON) {
+        // Aggressive chasing logic targeting Player 0
+        character *target = (character*)&state->players[0];
+        if (target->active) {
+            if (enemy->x < target->x) dummy_input->active_actions |= ACTION_MOVE_RIGHT;
+            else dummy_input->active_actions |= ACTION_MOVE_LEFT;
+
+            // Jump if trying to get over obstacles or close a vertical gap
+            if (enemy->y > target->y + 16.0f && (enemy->physics.state & GROUNDED)) {
+                dummy_input->active_actions |= ACTION_JUMP;
+            }
         }
     }
 }

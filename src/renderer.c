@@ -8,9 +8,9 @@ sprite_t* tilesheet;
 
 void renderer_init(void) {
     init_interrupts(); 
-   display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
-   rdpq_init();
-   tilesheet  = sprite_load("rom:/tiles.sprite");
+    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
+    rdpq_init();
+    tilesheet  = sprite_load("rom:/tiles.sprite");
 }
 
 // Update your function signature to accept surface_t *disp

@@ -46,7 +46,7 @@ typedef struct {
     float x, y;
     int coyote_frames;       // Time allowed to jump AFTER leaving a ledge
     int jump_buffer_frames;  // Time to remember a jump press BEFORE touching down
-    bool active;               // Is this character active in the game world?
+    bool active, supported_by_player;               // Is this character active in the game world?
     character_type type;      // Type of character (e.g., KNIGHT, ELF, etc.)
     character_physics physics; // Physics properties for the character
 } character;
@@ -57,12 +57,12 @@ void check_no_input(input_state *input, character *character);
 void check_grounded(character *character);
 void check_wall_collision(character *character);
 void check_ceiling_collision(character *character);
-void check_character_collisions(character *self, character *players);
+void check_character_collisions(character *self, character *players, float dt);
 float approach(float current, float target, float step);
 void apply_gravity(character *character, float dt);
 void apply_friction(character *character, input_state *input, float dt);
 void handle_move_left(character *character, input_state *input, float dt);
 void handle_move_right(character *character, input_state *input, float dt);
 void move_character(character *character, float dt);
-void handle_jump(character *character, input_state *input);
-#endif // CHARACTER_H
+void handle_jump(character *self, character *players, input_state *input);
+ #endif // CHARACTER_H

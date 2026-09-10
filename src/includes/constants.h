@@ -11,7 +11,7 @@
 #define MAP_HEIGHT      (30)
 #define TOTAL_TILES     (MAP_WIDTH * MAP_HEIGHT)
 #define PLAYER_WIDTH    (16)
-#define PLAYER_HEIGHT   (16)
+#define PLAYER_HEIGHT   (32)
 #define MAX_PLAYERS     (4)
 #define NUMBER_OF_CHARACTER_TYPES (4)
 

@@ -34,7 +34,7 @@ void draw_characters(const game_state_t *state) {
         int screen_y = state->players[i].y - camera.y;
 
         rdpq_set_mode_fill(RGBA32(0xFF, 0xFF, 0xFF, 0));
-        rdpq_fill_rectangle(screen_x, screen_y, screen_x + 16, screen_y + 16);
+        rdpq_fill_rectangle(screen_x, screen_y, screen_x + PLAYER_WIDTH, screen_y + PLAYER_HEIGHT);
     }
 }
 

@@ -16,6 +16,7 @@ void character_init(character *character, character_type type) {
     if(!character) return;
 
     character->active = false;
+    character->supported_by_player = false;
     character->type = type;
     character->x = 20.0f;
     character->y = 150.0f;
@@ -44,61 +45,35 @@ void character_init(character *character, character_type type) {
 void character_update(character *self, character *players, input_state *input, float dt) {
     if (!self || !input || !self->active) return;
 
-    // 1. Process Input & Friction Modifications
+    // Reset player-grounding flag before checking collisions this frame
+    bool was_supported_by_player = self->supported_by_player;
+    self->supported_by_player = false;
+
     apply_friction(self, input, dt);
     handle_move_left(self, input, dt);
     handle_move_right(self, input, dt);
-    handle_jump(self, input); // Triggers your JUMP_VELOCITY
+    handle_jump(self, players, input); 
 
-    // 2. Apply Environmental Forces over Time (THE FIX)
     apply_gravity(self, dt);
-
-    // 3. Move the character position based on final velocities
-    move_character(self, dt);
-
-    // 4. Resolve Collisions and Reset Ground Flags
-    check_grounded(self);
+    
+    // --- X Axis ---
+    self->x += self->physics.vx * dt;
     check_wall_collision(self);
+
+    // --- Y Axis ---
+    self->y += self->physics.vy * dt;
     check_ceiling_collision(self);
-    check_character_collisions(self, players);
-}
+    check_grounded(self); // Sets GROUNDED if touching solid world map tiles
 
-void check_character_collisions(character *self, character *players) {
-    if (!self || !players) return;
+    // --- Dynamic Inter-character Collisions ---
+    // If we aren't touching world tiles, this might re-apply GROUNDED if we land on a player
+    check_character_collisions(self, players, dt); 
 
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-        character *other = &players[i];
-        if (other == self || !other->active) continue;
-
-        if (self->x < other->x + 16 &&
-            self->x + 16 > other->x &&
-            self->y < other->y + 16 &&
-            self->y + 16 > other->y) {
-
-            float overlap_x = fminf(self->x + 16.0f - other->x, other->x + 16.0f - self->x);
-            float overlap_y = fminf(self->y + 16.0f - other->y, other->y + 16.0f - self->y);
-
-            if (overlap_x < overlap_y) {
-                // Side collision
-                if (self->x < other->x) {
-                    self->x -= overlap_x;
-                } else {
-                    self->x += overlap_x;
-                }
-                self->physics.vx = 0.0f;
-            } else {
-                // Vertical collision
-                if (self->y < other->y && self->physics.vy >= 0.0f) {
-                    self->y = other->y - 16.0f;
-                    self->physics.vy = 0.0f;
-                    self->physics.state |= GROUNDED;
-                    self->coyote_frames = COYOTE_MAX;
-                } else if (self->y > other->y && self->physics.vy < 0.0f) {
-                    self->y = other->y + 16.0f;
-                    self->physics.vy = 0.0f;
-                }
-            }
-        }
+    // --- CRITICAL COYOTE FIX ---
+    // If we were standing on a player last frame, but we aren't standing on a player 
+    // OR a world tile this frame, strip the GROUNDED flag so we fall instantly.
+    if (!(self->physics.state & GROUNDED) && !self->supported_by_player && was_supported_by_player) {
+         self->physics.state &= ~GROUNDED;
     }
 }
 
@@ -123,23 +98,171 @@ void apply_friction(character *character, input_state *input, float dt)
     }
 }
 
+void apply_gravity(character *character, float dt)
+{
+    // Apply gravity if we aren't resting on a tile AND aren't resting on a teammate
+    if (!(character->physics.state & GROUNDED) && !character->supported_by_player)
+    {
+        character->physics.vy += character->physics.gravity_scale * dt;
+        if (character->physics.vy > character->physics.terminal_velocity)
+        {
+            character->physics.vy = character->physics.terminal_velocity;
+        }
+    }
+}
+
+void handle_move_left(character *character, input_state *input, float dt)
+{
+    if (input->active_actions & ACTION_MOVE_LEFT)
+    {
+        character->physics.state |= MOVING_LEFT;
+        character->physics.state &= ~MOVING_RGHT;
+
+        // Choose acceleration based on ground vs air status
+        float current_accel = (character->physics.state & GROUNDED || character->supported_by_player) 
+            ? character->physics.ground_acceleration 
+            : character->physics.air_acceleration;
+
+        // --- TURNAROUND CHECK ---
+        // If player is moving RIGHT (> 0) but holding LEFT, apply turn_multiplier for instant responsiveness
+        if (character->physics.vx > 0.0f) 
+        {
+            character->physics.vx -= current_accel * character->physics.turn_multiplier * dt;
+        } 
+        else 
+        {
+            character->physics.vx -= current_accel * dt;
+        }
+
+        // Clamp to maximum speed
+        if (character->physics.vx < -character->physics.max_speed) 
+        {
+            character->physics.vx = -character->physics.max_speed;
+        }
+    }
+}
+
+void handle_move_right(character *character, input_state *input, float dt)
+{
+    if (input->active_actions & ACTION_MOVE_RIGHT)
+    {
+        character->physics.state |= MOVING_RGHT;
+        character->physics.state &= ~MOVING_LEFT;
+
+        // Choose acceleration based on ground vs air status
+        float current_accel = (character->physics.state & GROUNDED || character->supported_by_player) 
+            ? character->physics.ground_acceleration 
+            : character->physics.air_acceleration;
+
+        // --- TURNAROUND CHECK ---
+        // If player is moving LEFT (< 0) but holding RIGHT, apply turn_multiplier for instant responsiveness
+        if (character->physics.vx < 0.0f) 
+        {
+            character->physics.vx += current_accel * character->physics.turn_multiplier * dt;
+        } 
+        else 
+        {
+            character->physics.vx += current_accel * dt;
+        }
+
+        // Clamp to maximum speed
+        if (character->physics.vx > character->physics.max_speed) 
+        {
+            character->physics.vx = character->physics.max_speed;
+        }
+    }
+}
+
+void handle_jump(character *self, character *players, input_state *input)
+{
+    // Check if jump button is pressed
+    if (input->active_actions & ACTION_JUMP)
+    {
+        // Allowed to jump if grounded on a tile OR supported by a player
+        if ((self->physics.state & GROUNDED) || self->supported_by_player || self->coyote_frames > 0)
+        {
+            // Apply the jump velocity macro calculation
+            self->physics.vy = self->physics.jump_force;
+            
+            // Clear ground states
+            self->physics.state &= ~GROUNDED;
+            self->physics.state |= JUMPING;
+            self->coyote_frames = 0;
+
+            // --- MOMENTUM TRANSFER ---
+            // If we are jumping off a teammate, inherit their X speed so we don't drop straight down
+            if (self->supported_by_player && players) {
+                for (int i = 0; i < MAX_PLAYERS; i++) {
+                    character *other = &players[i];
+                    if (other == self || !other->active) continue;
+
+                    // Verify if this is the player directly beneath our feet
+                    if (self->x < other->x + PLAYER_WIDTH &&
+                        self->x + PLAYER_WIDTH > other->x &&
+                        fabsf((self->y + PLAYER_HEIGHT) - other->y) < 2.0f) {
+                        
+                        self->physics.vx += other->physics.vx; 
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void check_wall_collision(character *character)
+{
+    // 1. Calculate X tile coordinates for left and right edges
+    int tile_left_x  = (int)(character->x) / TILE_SIZE;
+    int tile_right_x = (int)(character->x + (float)PLAYER_WIDTH) / TILE_SIZE;
+
+    // 2. Calculate Y tile coordinates for 3 vertical check points (Head, Torso, Feet)
+    // Note: Feet point is tucked up by 1px so it doesn't scrap against the ground tile
+    int tile_head_y  = (int)(character->y) / TILE_SIZE;
+    int tile_torso_y = (int)(character->y + ((float)PLAYER_HEIGHT / 2.0f)) / TILE_SIZE;
+    int tile_feet_y  = (int)(character->y + (float)PLAYER_HEIGHT - 1.0f) / TILE_SIZE;
+
+    // 3. Look up all tile values from the binary matrix array
+    uint8_t left_head  = get_tile_at(tile_left_x, tile_head_y);
+    uint8_t left_torso = get_tile_at(tile_left_x, tile_torso_y);
+    uint8_t left_feet  = get_tile_at(tile_left_x, tile_feet_y);
+
+    uint8_t right_head  = get_tile_at(tile_right_x, tile_head_y);
+    uint8_t right_torso = get_tile_at(tile_right_x, tile_torso_y);
+    uint8_t right_feet  = get_tile_at(tile_right_x, tile_feet_y);
+
+    // 4. Resolve left wall collisions (if any of the 3 points hit a solid block)
+    if (left_head == 2 || left_torso == 2 || left_feet == 2) {
+        character->x = (float)((tile_left_x + 1) * TILE_SIZE);
+        character->physics.vx = 0.0f;
+    }
+    
+    // 5. Resolve right wall collisions (if any of the 3 points hit a solid block)
+    if (right_head == 2 || right_torso == 2 || right_feet == 2) {
+        character->x = (float)(tile_right_x * TILE_SIZE - (float)PLAYER_WIDTH); // Wait, fix typo variable name:
+        // Note: Using tile_right_x from your original definition
+        character->x = (float)(tile_right_x * TILE_SIZE - (float)PLAYER_WIDTH);
+        character->physics.vx = 0.0f;
+    }
+}
+
 void check_grounded(character *character)
 {
-    // 1. Calculate the tile position right beneath the character's feet
-    // We check the center-bottom of the 16x16 bounding box
-    int tile_x = (int)(character->x + 8.0f) / TILE_SIZE;
-    int tile_y = (int)(character->y + 16.0f) / TILE_SIZE;
+    // For a wider or shifting bounding box, we now check both the left-bottom and right-bottom feet edges
+    // Tucked in slightly (1px) so the player doesn't trigger grounding from an adjacent wall tile
+    int tile_left_x  = (int)(character->x + 1.0f) / TILE_SIZE;
+    int tile_right_x = (int)(character->x + (float)PLAYER_WIDTH - 1.0f) / TILE_SIZE;
+    int tile_bottom_y = (int)(character->y + (float)PLAYER_HEIGHT) / TILE_SIZE;
 
-    // 2. Look up the tile value from our binary matrix array
-    uint8_t tile_below = get_tile_at(tile_x, tile_y);
+    uint8_t tile_below_left  = get_tile_at(tile_left_x, tile_bottom_y);
+    uint8_t tile_below_right = get_tile_at(tile_right_x, tile_bottom_y);
 
-    if (tile_below == 2) // If it's a solid block layout point
+    if (tile_below_left == 2 || tile_below_right == 2) 
     {
-        // Snap the character perfectly on top of the tile boundary edge pixel
-        character->y = (float)(tile_y * TILE_SIZE) - 16.0f;
+        character->y = (float)(tile_bottom_y * TILE_SIZE) - (float)PLAYER_HEIGHT;
         character->physics.vy = 0.0f;
         character->physics.state |= GROUNDED;
-        character->physics.state &= ~ JUMPING;
+        character->physics.state &= ~JUMPING;
         character->coyote_frames = COYOTE_MAX;
     } 
     else
@@ -151,39 +274,17 @@ void check_grounded(character *character)
     }
 }
 
-void check_wall_collision(character *character)
-{
-    // 1. Calculate the tile position at the character's left and right edges
-    int tile_left_x = (int)(character->x) / TILE_SIZE;
-    int tile_right_x = (int)(character->x + 16.0f) / TILE_SIZE;
-    int tile_y = (int)(character->y + 8.0f) / TILE_SIZE; // Check mid-height for horizontal collisions
-
-    // 2. Look up the tile values from our binary matrix array
-    uint8_t tile_left = get_tile_at(tile_left_x, tile_y);
-    uint8_t tile_right = get_tile_at(tile_right_x, tile_y);
-
-    // 3. Resolve collisions with solid blocks
-    if (tile_left == 2) {
-        character->x = (float)((tile_left_x + 1) * TILE_SIZE);
-        character->physics.vx = 0.0f;
-    }
-    if (tile_right == 2) {
-        character->x = (float)(tile_right_x * TILE_SIZE - 16.0f);
-        character->physics.vx = 0.0f;
-    }
-}
-
 void check_ceiling_collision(character *character)
 {
-    // 1. Calculate the tile position at the character's top edge
-    int tile_x = (int)(character->x + 8.0f) / TILE_SIZE; // Check mid-width for vertical collisions
-    int tile_top_y = (int)(character->y) / TILE_SIZE;
+    // Double point check for the ceiling (left-top and right-top)
+    int tile_left_x  = (int)(character->x + 1.0f) / TILE_SIZE;
+    int tile_right_x = (int)(character->x + (float)PLAYER_WIDTH - 1.0f) / TILE_SIZE;
+    int tile_top_y   = (int)(character->y) / TILE_SIZE;
 
-    // 2. Look up the tile value from our binary matrix array
-    uint8_t tile_above = get_tile_at(tile_x, tile_top_y);
+    uint8_t tile_above_left  = get_tile_at(tile_left_x, tile_top_y);
+    uint8_t tile_above_right = get_tile_at(tile_right_x, tile_top_y);
 
-    // 3. Resolve collision with solid blocks
-    if (tile_above == 2) {
+    if (tile_above_left == 2 || tile_above_right == 2) {
         character->y = (float)((tile_top_y + 1) * TILE_SIZE);
         if (character->physics.vy < 0.0f) {
             character->physics.vy = 0.0f;
@@ -191,98 +292,45 @@ void check_ceiling_collision(character *character)
     }
 }
 
-void apply_gravity(character *character, float dt)
-{
-    // 1. Apply Gravity if in the air
-    if (!(character->physics.state & GROUNDED))
-    {
-        character->physics.vy += character->physics.gravity_scale * dt;
-        if (character->physics.vy > character->physics.terminal_velocity)
-        {
-            character->physics.vy = character->physics.terminal_velocity;
-        }
-    }
-}
+void check_character_collisions(character *self, character *players, float dt) {
+    if (!self || !players) return;
 
-void handle_move_right(character *character, input_state *input, float dt)
-{
-    if (input->active_actions & ACTION_MOVE_RIGHT)
-    {
-        character->physics.state |= MOVING_RGHT;
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        character *other = &players[i];
+        if (other == self || !other->active) continue;
 
-        if (character->physics.state & GROUNDED) {
-            // CHECK FOR TURNAROUND: Player is moving LEFT (< 0) but holding RIGHT
-            if (character->physics.vx < 0.0f) {
-                character->physics.vx = approach(character->physics.vx, character->physics.max_speed, character->physics.ground_acceleration * character->physics.turn_multiplier * dt);
+        if (self->x < other->x + PLAYER_WIDTH &&
+            self->x + PLAYER_WIDTH > other->x &&
+            self->y < other->y + PLAYER_HEIGHT &&
+            self->y + PLAYER_HEIGHT > other->y) {
+
+            float overlap_x = fminf(self->x + (float)PLAYER_WIDTH - other->x, other->x + (float)PLAYER_WIDTH - self->x);
+            float overlap_y = fminf(self->y + (float)PLAYER_HEIGHT - other->y, other->y + (float)PLAYER_HEIGHT - self->y);
+
+            if (overlap_x < overlap_y) {
+                if (self->x < other->x) {
+                    self->x -= overlap_x;
+                } else {
+                    self->x += overlap_x;
+                }
+                self->physics.vx = 0.0f;
             } else {
-                character->physics.vx = approach(character->physics.vx, character->physics.max_speed, character->physics.ground_acceleration * dt);
+                if (self->y < other->y && self->physics.vy >= 0.0f) {
+                    self->y = other->y - (float)PLAYER_HEIGHT;
+                    
+                    // --- THE FIX ---
+                    // Match the velocity of the player underneath so you move with them smoothly
+                    self->x += other->physics.vx * dt; // Ensure dt is passed into this function or handled
+                    
+                    self->physics.vy = 0.0f;
+                    self->physics.state |= GROUNDED;
+                    self->supported_by_player = true; // Mark that a player is holding us up
+                    self->coyote_frames = COYOTE_MAX;
+                } else if (self->y > other->y && self->physics.vy < 0.0f) {
+                    self->y = other->y + (float)PLAYER_HEIGHT;
+                    self->physics.vy = 0.0f;
+                }
             }
         }
-        else {
-            // Air turnaround (optional: can keep it lower than ground for loose air control)
-            if (character->physics.vx < 0.0f) {
-                character->physics.vx = approach(character->physics.vx, character->physics.max_speed, character->physics.air_acceleration * 1.5f * dt);
-            } else {
-                character->physics.vx = approach(character->physics.vx, character->physics.max_speed, character->physics.air_acceleration * dt);
-            }
-        }
     }
-    else {
-        character->physics.state &= ~ MOVING_RGHT;
-    }
-}
-
-void handle_move_left(character *character, input_state *input, float dt)
-{
-    if (input->active_actions & ACTION_MOVE_LEFT)
-    {
-        character->physics.state |= MOVING_LEFT;
-
-        if (character->physics.state & GROUNDED) {
-            // CHECK FOR TURNAROUND: Player is moving RIGHT (> 0) but holding LEFT
-            if (character->physics.vx > 0.0f) {
-                character->physics.vx = approach(character->physics.vx, -character->physics.max_speed, character->physics.ground_acceleration * character->physics.turn_multiplier * dt);
-            } else {
-                character->physics.vx = approach(character->physics.vx, -character->physics.max_speed, character->physics.ground_acceleration * dt);
-            }
-        }
-        else {
-            // Air turnaround
-            if (character->physics.vx > 0.0f) {
-                character->physics.vx = approach(character->physics.vx, -character->physics.max_speed, character->physics.air_acceleration * 1.5f * dt);
-            } else {
-                character->physics.vx = approach(character->physics.vx, -character->physics.max_speed, character->physics.air_acceleration * dt);
-            }
-        }
-    } 
-    else {
-        character->physics.state &= ~ MOVING_LEFT;
-    } 
-}
-
-void handle_jump(character *character, input_state *input)
-{
-    // Handle jumping
-    if ((input->active_actions & ACTION_JUMP))
-    { 
-        character->physics.state &= ~ GROUNDED;
-        character->jump_buffer_frames = JUMP_BUFFER_MAX; // Reset jump buffer when jump is pressed
-    } 
-    else if (character->jump_buffer_frames > 0) {
-        character->jump_buffer_frames--;
-    }
-        
-    if (character->jump_buffer_frames > 0 && character->coyote_frames > 0) {
-        character->physics.vy = character->physics.jump_force;
-        character->physics.state &= ~ GROUNDED;
-        character->physics.state |= JUMPING;
-        character->jump_buffer_frames = 0;
-        character->coyote_frames = 0;
-    } 
-}
-
-void move_character(character *character, float dt)
-{
-    character->x += character->physics.vx * dt;
-    character->y += character->physics.vy * dt;
 }

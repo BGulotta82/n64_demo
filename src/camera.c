@@ -1,4 +1,5 @@
 #include "camera.h"
+#include "constants.h"
 
 void camera_init(camera_t *cam, int world_width, int world_height, int screen_width, int screen_height) {
     cam->x = 0;

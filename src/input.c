@@ -1,5 +1,4 @@
 #include "input.h"
-#include <libdragon.h>
 #include <string.h>
 
 void input_init(input_state *state) {

@@ -27,7 +27,7 @@ $(BUILD_DIR):
 
 $(BUILD_DIR)/sprites/%.sprite: $(ASSET_DIR)/%.png | $(BUILD_DIR)
 	mkdir -p $(dir $@)
-	$(MKSPRITE) --format rgba16 -o $(dir $@) $<
+	$(MKSPRITE) --format CI4 -o $(dir $@) $<
 	test -f $(dir $@)/$(notdir $(basename $@)).sprite
 
 $(FILESYSTEM_DIR)/%.sprite: $(BUILD_DIR)/sprites/%.sprite | $(BUILD_DIR)

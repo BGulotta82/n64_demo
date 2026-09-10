@@ -11,23 +11,10 @@
 #define PLAYER_WIDTH    (16)
 #define PLAYER_HEIGHT   (16)
 #define MAX_PLAYERS     (4)
+#define NUMBER_OF_CHARACTER_TYPES (4)
 
-// =========================================================================
-// 2. ALLOWED AS EXTERN: Purely used as mathematical data in physics loops
-// =========================================================================
-extern const float GRAVITY;
-extern const float JUMP_VELOCITY;
-extern const float TERMINAL_VELOCITY;
-extern const float FLOOR_Y;
-extern const int COYOTE_MAX;
-extern const int JUMP_BUFFER_MAX;
-extern const float RUN_SPEED;
-extern const float AIR_ACCEL;
-extern const float GROUND_DRAG;
-extern const float AIR_DRAG;
-extern const float JUMP_HEIGHT;
-extern const float TIME_TO_PEAK;
-extern const float GROUND_ACCEL;
-extern const float TURN_MULTIPLIER;
+// 2. Input Buffers
+#define JUMP_BUFFER_MAX (5)
+#define COYOTE_MAX (6)
 
 #endif // CONSTANTS_H

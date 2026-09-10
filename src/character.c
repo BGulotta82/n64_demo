@@ -1,18 +1,44 @@
 #include "character.h"
-#include "constants.h"
 #include "level.h"
-#include "engine.h"
-#include <math.h>
 
-void character_init(character *character) {
+float physics_constants[NUMBER_OF_CHARACTER_TYPES][9] = {
+    // KNIGHT
+    {3.0f, 150.0f, 1250.0f, 1150.0f, 600.0f, 180.0f, 36.0f, 0.24f, 400.0f },
+    // ELF
+    {3.5f, 160.0f, 1300.0f, 1100.0f, 650.0f, 170.0f, 40.0f, 0.22f, 400.0f},
+    // WIZARD
+    {2.5f, 140.0f, 1200.0f, 1200.0f, 550.0f, 190.0f, 32.0f, 0.26f, 400.0f},
+    // DWARF
+    {2.8f, 145.0f, 1225.0f, 1175.0f, 575.0f, 185.0f, 34.0f, 0.25f, 400.0f}
+};
+
+void character_init(character *character, character_type type) {
     if(!character) return;
+
+    character->active = false;
+    character->type = type;
     character->x = 20.0f;
     character->y = 150.0f;
-    character->vx = 0.0f;
-    character->vy = 0.0f;
-    character->is_grounded = false;
     character->coyote_frames = 0;
     character->jump_buffer_frames = 0;
+
+    // initialize physics struct
+    character->physics.vx = 0.0f;
+    character->physics.vy = 0.0f;
+    character->physics.ax = 0.0f;
+    character->physics.ay = 0.0f;
+    character->physics.turn_multiplier = physics_constants[type][0];
+    character->physics.max_speed = physics_constants[type][1];
+    character->physics.ground_acceleration = physics_constants[type][2];
+    character->physics.ground_friction = physics_constants[type][3];
+    character->physics.air_acceleration = physics_constants[type][4];
+    character->physics.air_friction = physics_constants[type][5];
+    character->physics.jump_height = physics_constants[type][6];
+    character->physics.jump_time_to_peak = physics_constants[type][7];
+    character->physics.terminal_velocity = physics_constants[type][8];
+    character->physics.gravity_scale = (2.0f * physics_constants[type][6]) / (physics_constants[type][7] * physics_constants[type][7]);
+    character->physics.jump_force = -(2.0f * physics_constants[type][6]) / physics_constants[type][7];
+    character->physics.state = NONE;
 }
 
 void character_update(character *self, character *players, input_state *input, float dt) {
@@ -59,17 +85,17 @@ void check_character_collisions(character *self, character *players) {
                 } else {
                     self->x += overlap_x;
                 }
-                self->vx = 0.0f;
+                self->physics.vx = 0.0f;
             } else {
                 // Vertical collision
-                if (self->y < other->y && self->vy >= 0.0f) {
+                if (self->y < other->y && self->physics.vy >= 0.0f) {
                     self->y = other->y - 16.0f;
-                    self->vy = 0.0f;
-                    self->is_grounded = true;
+                    self->physics.vy = 0.0f;
+                    self->physics.state |= GROUNDED;
                     self->coyote_frames = COYOTE_MAX;
-                } else if (self->y > other->y && self->vy < 0.0f) {
+                } else if (self->y > other->y && self->physics.vy < 0.0f) {
                     self->y = other->y + 16.0f;
-                    self->vy = 0.0f;
+                    self->physics.vy = 0.0f;
                 }
             }
         }
@@ -88,12 +114,12 @@ void apply_friction(character *character, input_state *input, float dt)
     if (input->active_actions & ACTION_MOVE_LEFT || input->active_actions & ACTION_MOVE_RIGHT) 
         return;
 
-    if (character->is_grounded) {
+    if (character->physics.state & GROUNDED) {
         // Stops the player quickly on the ground
-        character->vx = approach(character->vx, 0, GROUND_DRAG * dt);
+        character->physics.vx = approach(character->physics.vx, 0, character->physics.ground_friction * dt);
     } else {
         // Gently shaves off a bit of forward speed in mid-air
-        character->vx = approach(character->vx, 0, AIR_DRAG * dt);
+        character->physics.vx = approach(character->physics.vx, 0, character->physics.air_friction * dt);
     }
 }
 
@@ -111,13 +137,14 @@ void check_grounded(character *character)
     {
         // Snap the character perfectly on top of the tile boundary edge pixel
         character->y = (float)(tile_y * TILE_SIZE) - 16.0f;
-        character->vy = 0.0f;
-        character->is_grounded = true;
+        character->physics.vy = 0.0f;
+        character->physics.state |= GROUNDED;
+        character->physics.state &= ~ JUMPING;
         character->coyote_frames = COYOTE_MAX;
     } 
     else
     {
-        character->is_grounded = false;
+        character->physics.state &= ~GROUNDED;
         if (character->coyote_frames > 0) {
             character->coyote_frames--;
         }
@@ -138,11 +165,11 @@ void check_wall_collision(character *character)
     // 3. Resolve collisions with solid blocks
     if (tile_left == 2) {
         character->x = (float)((tile_left_x + 1) * TILE_SIZE);
-        character->vx = 0.0f;
+        character->physics.vx = 0.0f;
     }
     if (tile_right == 2) {
         character->x = (float)(tile_right_x * TILE_SIZE - 16.0f);
-        character->vx = 0.0f;
+        character->physics.vx = 0.0f;
     }
 }
 
@@ -158,8 +185,8 @@ void check_ceiling_collision(character *character)
     // 3. Resolve collision with solid blocks
     if (tile_above == 2) {
         character->y = (float)((tile_top_y + 1) * TILE_SIZE);
-        if (character->vy < 0.0f) {
-            character->vy = 0.0f;
+        if (character->physics.vy < 0.0f) {
+            character->physics.vy = 0.0f;
         }
     }
 }
@@ -167,12 +194,12 @@ void check_ceiling_collision(character *character)
 void apply_gravity(character *character, float dt)
 {
     // 1. Apply Gravity if in the air
-    if (!character->is_grounded)
+    if (!(character->physics.state & GROUNDED))
     {
-        character->vy += GRAVITY * dt;
-        if (character->vy > TERMINAL_VELOCITY)
+        character->physics.vy += character->physics.gravity_scale * dt;
+        if (character->physics.vy > character->physics.terminal_velocity)
         {
-            character->vy = TERMINAL_VELOCITY;
+            character->physics.vy = character->physics.terminal_velocity;
         }
     }
 }
@@ -181,22 +208,27 @@ void handle_move_right(character *character, input_state *input, float dt)
 {
     if (input->active_actions & ACTION_MOVE_RIGHT)
     {
-        if (character->is_grounded) {
+        character->physics.state |= MOVING_RGHT;
+
+        if (character->physics.state & GROUNDED) {
             // CHECK FOR TURNAROUND: Player is moving LEFT (< 0) but holding RIGHT
-            if (character->vx < 0.0f) {
-                character->vx = approach(character->vx, RUN_SPEED, GROUND_ACCEL * TURN_MULTIPLIER * dt);
+            if (character->physics.vx < 0.0f) {
+                character->physics.vx = approach(character->physics.vx, character->physics.max_speed, character->physics.ground_acceleration * character->physics.turn_multiplier * dt);
             } else {
-                character->vx = approach(character->vx, RUN_SPEED, GROUND_ACCEL * dt);
+                character->physics.vx = approach(character->physics.vx, character->physics.max_speed, character->physics.ground_acceleration * dt);
             }
         }
         else {
             // Air turnaround (optional: can keep it lower than ground for loose air control)
-            if (character->vx < 0.0f) {
-                character->vx = approach(character->vx, RUN_SPEED, AIR_ACCEL * 1.5f * dt);
+            if (character->physics.vx < 0.0f) {
+                character->physics.vx = approach(character->physics.vx, character->physics.max_speed, character->physics.air_acceleration * 1.5f * dt);
             } else {
-                character->vx = approach(character->vx, RUN_SPEED, AIR_ACCEL * dt);
+                character->physics.vx = approach(character->physics.vx, character->physics.max_speed, character->physics.air_acceleration * dt);
             }
         }
+    }
+    else {
+        character->physics.state &= ~ MOVING_RGHT;
     }
 }
 
@@ -204,23 +236,28 @@ void handle_move_left(character *character, input_state *input, float dt)
 {
     if (input->active_actions & ACTION_MOVE_LEFT)
     {
-        if (character->is_grounded) {
+        character->physics.state |= MOVING_LEFT;
+
+        if (character->physics.state & GROUNDED) {
             // CHECK FOR TURNAROUND: Player is moving RIGHT (> 0) but holding LEFT
-            if (character->vx > 0.0f) {
-                character->vx = approach(character->vx, -RUN_SPEED, GROUND_ACCEL * TURN_MULTIPLIER * dt);
+            if (character->physics.vx > 0.0f) {
+                character->physics.vx = approach(character->physics.vx, -character->physics.max_speed, character->physics.ground_acceleration * character->physics.turn_multiplier * dt);
             } else {
-                character->vx = approach(character->vx, -RUN_SPEED, GROUND_ACCEL * dt);
+                character->physics.vx = approach(character->physics.vx, -character->physics.max_speed, character->physics.ground_acceleration * dt);
             }
         }
         else {
             // Air turnaround
-            if (character->vx > 0.0f) {
-                character->vx = approach(character->vx, -RUN_SPEED, AIR_ACCEL * 1.5f * dt);
+            if (character->physics.vx > 0.0f) {
+                character->physics.vx = approach(character->physics.vx, -character->physics.max_speed, character->physics.air_acceleration * 1.5f * dt);
             } else {
-                character->vx = approach(character->vx, -RUN_SPEED, AIR_ACCEL * dt);
+                character->physics.vx = approach(character->physics.vx, -character->physics.max_speed, character->physics.air_acceleration * dt);
             }
         }
-    }
+    } 
+    else {
+        character->physics.state &= ~ MOVING_LEFT;
+    } 
 }
 
 void handle_jump(character *character, input_state *input)
@@ -228,7 +265,7 @@ void handle_jump(character *character, input_state *input)
     // Handle jumping
     if ((input->active_actions & ACTION_JUMP))
     { 
-        character->is_grounded = false;
+        character->physics.state &= ~ GROUNDED;
         character->jump_buffer_frames = JUMP_BUFFER_MAX; // Reset jump buffer when jump is pressed
     } 
     else if (character->jump_buffer_frames > 0) {
@@ -236,26 +273,16 @@ void handle_jump(character *character, input_state *input)
     }
         
     if (character->jump_buffer_frames > 0 && character->coyote_frames > 0) {
-        character->vy = JUMP_VELOCITY;
-        character->is_grounded = 0;
+        character->physics.vy = character->physics.jump_force;
+        character->physics.state &= ~ GROUNDED;
+        character->physics.state |= JUMPING;
         character->jump_buffer_frames = 0;
         character->coyote_frames = 0;
-    }
-
-    bool jump_released = !(input->active_actions & ACTION_JUMP_HELD) || (input->active_actions & ACTION_JUMP_RELEASED);
-
-    if (jump_released && !character->is_grounded && character->vy < 0.0f)
-    {
-        const float MIN_JUMP_UPWARD_VELOCITY = -60.0f; 
-
-        if (character->vy < MIN_JUMP_UPWARD_VELOCITY) {
-            character->vy = MIN_JUMP_UPWARD_VELOCITY;
-        }
-    }    
+    } 
 }
 
 void move_character(character *character, float dt)
 {
-    character->x += character->vx * dt;
-    character->y += character->vy * dt;
+    character->x += character->physics.vx * dt;
+    character->y += character->physics.vy * dt;
 }

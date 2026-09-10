@@ -1,7 +1,6 @@
 #ifndef CAMERA_H
 #define CAMERA_H
 
-#include "constants.h"
 #include <stdbool.h>
 
 typedef struct {

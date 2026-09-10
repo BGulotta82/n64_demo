@@ -1,4 +1,5 @@
 #include "engine.h"
+#include "camera.h"
 #include <string.h>
 
 extern camera_t camera;
@@ -10,7 +11,6 @@ void engine_init(game_state_t *state) {
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         input_init(&state->input[i]);
-        character_init(&state->players[i]);
     }
 }
 
@@ -56,7 +56,9 @@ void engine_update(game_state_t *state, float dt) {
     for (int i = 0; i < MAX_PLAYERS; i++) {
         bool active = input_update(&state->input[i], i);
 
-        spawn_new_player(active, state, i);
+        if (active) {
+            spawn_new_player(state, KNIGHT, i);
+        }
 
         if (!state->players[i].active) {
             continue;
@@ -71,19 +73,20 @@ void engine_update(game_state_t *state, float dt) {
             state->players[i].x = old_x;
         }
     }
-    
+
     state->frame++;
 }
 
-void spawn_new_player(bool active, game_state_t *state, int i)
+void spawn_new_player(game_state_t *state, character_type type, int i)
 {
-    if (active && !state->players[i].active)
+    if (!state->players[i].active)
     {
+        character_init(&state->players[i], type);
         state->players[i].active = true;
         if (i > 0)
         {
-            bool moving_right = state->players[0].vx > 0.0f;
-            int offset = moving_right ? -30 : 30; // spawn behind player 0 based on their movement direction
+            bool p1_moving_right = state->players[0].physics.state & MOVING_RGHT;
+            int offset = p1_moving_right ? -30 : 30; // spawn behind player 0 based on their movement direction
             state->players[i].x = state->players[0].x + offset;
             state->players[i].y = state->players[0].y;
         }

@@ -51,14 +51,12 @@ static bool group_would_fit_horizontally(const game_state_t *state, int player_i
 }
 
 void engine_update(game_state_t *state, float dt) {
+
     joypad_poll();
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
-        bool active = input_update(&state->input[i], i);
 
-        if (active) {
-            spawn_new_player(state, KNIGHT, i);
-        }
+        check_new_player_spawn(state, i);
 
         if (!state->players[i].active) {
             continue;
@@ -75,6 +73,33 @@ void engine_update(game_state_t *state, float dt) {
     }
 
     state->frame++;
+}
+
+void check_new_player_spawn(game_state_t *state, int i)
+{
+    bool active = input_update(&state->input[i], i);
+
+    if (active)
+    {
+        character_type type;
+        switch (i)
+        {
+        case 0:
+            type = KNIGHT;
+            break;
+        case 1:
+            type = ELF;
+            break;
+        case 2:
+            type = WIZARD;
+            break;
+        case 3:
+            type = DWARF;
+            break;
+        }
+
+        spawn_new_player(state, type, i);
+    }
 }
 
 void spawn_new_player(game_state_t *state, character_type type, int i)

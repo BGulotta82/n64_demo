@@ -1,0 +1,20 @@
+GIMP Palette
+Name: Medieval CI4 Platformer
+Columns: 16
+#
+  0   0   0	Transparent Base
+ 18  16  20	Deep Shadow Outline
+ 31  36  48	Dungeon Blue Shadow
+ 69  73  84	Dark Stone
+115 119 133	Mid Stone
+169 175 190	Light Stone
+219 225 237	Cold Brick Highlight
+ 30  51  42	Shadow Moss
+ 60  97  69	Overgrown Moss
+127 166  98	Bright Grass
+ 61  37  30	Rotten Wood Mud
+110  68  51	Level Planks
+161 112  86	Weathered Wood
+107  33  20	Ember Shadow
+204  85  37	Torchlight Glow
+240 184  67	Gold Flame

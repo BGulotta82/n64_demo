@@ -41,7 +41,12 @@ void draw_characters(const game_state_t *state) {
 }
 
 void draw_level() {
-    rdpq_set_mode_copy(true);
+    // 1. MUST use standard mode for CI4 (Copy mode cannot parse palettes)
+    rdpq_set_mode_standard();
+    
+    // 2. Configure the Texture Lookup Table and upload the palette
+    rdpq_mode_tlut(TLUT_RGBA16);
+    rdpq_tex_upload_tlut(sprite_get_palette(tilesheet), 0, 16);
 
     int start_x = camera.x / TILE_SIZE;
     int start_y = camera.y / TILE_SIZE;
@@ -55,16 +60,25 @@ void draw_level() {
             }
 
             uint8_t tile_id = current_map[y * MAP_WIDTH + x];
+            if (tile_id == 0) continue; // Assuming 0 is empty/air
 
             int tile_index = tile_id - 1;
-            int tile_x = tile_index % tilesheet->hslices;
-            int tile_y = tile_index / tilesheet->hslices;
-
-            surface_t tile_surface = sprite_get_tile(tilesheet, tile_x, tile_y);
+            int tile_x = (tile_index % tilesheet->hslices) * TILE_SIZE;
+            int tile_y = (tile_index / tilesheet->hslices) * TILE_SIZE;
 
             int screen_x = x * TILE_SIZE - camera.x;
             int screen_y = y * TILE_SIZE - camera.y;
-            rdpq_tex_blit(&tile_surface, screen_x, screen_y, NULL);
+
+            // 3. Define the source rectangle coordinates within the tilesheet
+            rdpq_blitparms_t parms = {
+                .s0 = tile_x,
+                .t0 = tile_y,
+                .width = TILE_SIZE,
+                .height = TILE_SIZE,
+            };
+
+            // 4. Blit directly from the main tilesheet sprite using the parameters
+            rdpq_sprite_blit(tilesheet, screen_x, screen_y, &parms);
         }
     }
 }

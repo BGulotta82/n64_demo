@@ -10,8 +10,8 @@
 #define MAP_WIDTH       (400)
 #define MAP_HEIGHT      (30)
 #define TOTAL_TILES     (MAP_WIDTH * MAP_HEIGHT)
-#define PLAYER_WIDTH    (16)
-#define PLAYER_HEIGHT   (32)
+#define PLAYER_WIDTH    (16.0f)
+#define PLAYER_HEIGHT   (32.0f)
 #define MAX_PLAYERS     (4)
 #define NUMBER_OF_CHARACTER_TYPES (4)
 

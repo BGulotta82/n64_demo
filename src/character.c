@@ -214,13 +214,13 @@ void check_wall_collision(character *character)
 {
     // 1. Calculate X tile coordinates for left and right edges
     int tile_left_x  = (int)(character->x) / TILE_SIZE;
-    int tile_right_x = (int)(character->x + (float)PLAYER_WIDTH) / TILE_SIZE;
+    int tile_right_x = (int)(character->x + PLAYER_WIDTH) / TILE_SIZE;
 
     // 2. Calculate Y tile coordinates for 3 vertical check points (Head, Torso, Feet)
     // Note: Feet point is tucked up by 1px so it doesn't scrap against the ground tile
     int tile_head_y  = (int)(character->y) / TILE_SIZE;
-    int tile_torso_y = (int)(character->y + ((float)PLAYER_HEIGHT / 2.0f)) / TILE_SIZE;
-    int tile_feet_y  = (int)(character->y + (float)PLAYER_HEIGHT - 1.0f) / TILE_SIZE;
+    int tile_torso_y = (int)(character->y + PLAYER_HEIGHT / 2.0f) / TILE_SIZE;
+    int tile_feet_y  = (int)(character->y + PLAYER_HEIGHT - 1.0f) / TILE_SIZE;
 
     // 3. Look up all tile values from the binary matrix array
     uint8_t left_head  = get_tile_at(tile_left_x, tile_head_y);
@@ -239,52 +239,64 @@ void check_wall_collision(character *character)
     
     // 5. Resolve right wall collisions (if any of the 3 points hit a solid block)
     if (right_head == 2 || right_torso == 2 || right_feet == 2) {
-        character->x = (float)(tile_right_x * TILE_SIZE - (float)PLAYER_WIDTH); // Wait, fix typo variable name:
+        character->x = (float)(tile_right_x * TILE_SIZE - PLAYER_WIDTH); // Wait, fix typo variable name:
         // Note: Using tile_right_x from your original definition
-        character->x = (float)(tile_right_x * TILE_SIZE - (float)PLAYER_WIDTH);
+        character->x = (float)(tile_right_x * TILE_SIZE - PLAYER_WIDTH);
         character->physics.vx = 0.0f;
     }
 }
 
 void check_grounded(character *character)
 {
-    // For a wider or shifting bounding box, we now check both the left-bottom and right-bottom feet edges
-    // Tucked in slightly (1px) so the player doesn't trigger grounding from an adjacent wall tile
+    // 1. Get horizontal footprint boundaries (tucked in slightly by 1px)
     int tile_left_x  = (int)(character->x + 1.0f) / TILE_SIZE;
-    int tile_right_x = (int)(character->x + (float)PLAYER_WIDTH - 1.0f) / TILE_SIZE;
-    int tile_bottom_y = (int)(character->y + (float)PLAYER_HEIGHT) / TILE_SIZE;
+    int tile_right_x = (int)(character->x + PLAYER_WIDTH - 1.0f) / TILE_SIZE;
 
-    uint8_t tile_below_left  = get_tile_at(tile_left_x, tile_bottom_y);
-    uint8_t tile_below_right = get_tile_at(tile_right_x, tile_bottom_y);
+    // 2. Scan a short vertical range down to catch high-velocity falls
+    // We check from your previous ankles up to your current feet placement + 1px lookahead
+    int start_tile_y = (int)(character->y + PLAYER_HEIGHT - 4.0f) / TILE_SIZE; 
+    int end_tile_y   = (int)(character->y + PLAYER_HEIGHT + 1.0f) / TILE_SIZE;
 
-    if (tile_below_left == 2 || tile_below_right == 2) 
+    // Safety clamp to ensure we don't scan backward loops
+    if (start_tile_y > end_tile_y) start_tile_y = end_tile_y;
+
+    // 3. Scan the vertical row path crossed this frame
+    for (int tile_y = start_tile_y; tile_y <= end_tile_y; tile_y++)
     {
-        character->y = (float)(tile_bottom_y * TILE_SIZE) - (float)PLAYER_HEIGHT;
-        character->physics.vy = 0.0f;
-        character->physics.state |= GROUNDED;
-        character->physics.state &= ~JUMPING;
-        character->coyote_frames = COYOTE_MAX;
-    } 
-    else
-    {
-        character->physics.state &= ~GROUNDED;
-        if (character->coyote_frames > 0) {
-            character->coyote_frames--;
+        uint8_t tile_below_left  = get_tile_at(tile_left_x, tile_y);
+        uint8_t tile_below_right = get_tile_at(tile_right_x, tile_y);
+
+        if (tile_below_left == 2 || tile_below_right == 2) 
+        {
+            // Found the floor! Snap perfectly to the top edge of this tile row
+            character->y = (float)(tile_y * TILE_SIZE) - PLAYER_HEIGHT;
+            character->physics.vy = 0.0f;
+            character->physics.state |= GROUNDED;
+            character->physics.state &= ~JUMPING;
+            character->coyote_frames = COYOTE_MAX;
+            return; // Exit out immediately since we are safely grounded
         }
+    }
+
+    // 4. If no solid tiles were crossed, player is in mid-air
+    character->physics.state &= ~GROUNDED;
+    if (character->coyote_frames > 0) {
+        character->coyote_frames--;
     }
 }
 
 void check_ceiling_collision(character *character)
 {
-    // Double point check for the ceiling (left-top and right-top)
+    // Double point check for the ceiling using a 1px vertical look-ahead offset
     int tile_left_x  = (int)(character->x + 1.0f) / TILE_SIZE;
-    int tile_right_x = (int)(character->x + (float)PLAYER_WIDTH - 1.0f) / TILE_SIZE;
-    int tile_top_y   = (int)(character->y) / TILE_SIZE;
+    int tile_right_x = (int)(character->x + PLAYER_WIDTH - 1.0f) / TILE_SIZE;
+    int tile_top_y   = (int)(character->y - 1.0f) / TILE_SIZE; // -1.0f to check tile right above head
 
     uint8_t tile_above_left  = get_tile_at(tile_left_x, tile_top_y);
     uint8_t tile_above_right = get_tile_at(tile_right_x, tile_top_y);
 
     if (tile_above_left == 2 || tile_above_right == 2) {
+        // Snap perfectly underneath the solid ceiling tile
         character->y = (float)((tile_top_y + 1) * TILE_SIZE);
         if (character->physics.vy < 0.0f) {
             character->physics.vy = 0.0f;
@@ -304,8 +316,8 @@ void check_character_collisions(character *self, character *players, float dt) {
             self->y < other->y + PLAYER_HEIGHT &&
             self->y + PLAYER_HEIGHT > other->y) {
 
-            float overlap_x = fminf(self->x + (float)PLAYER_WIDTH - other->x, other->x + (float)PLAYER_WIDTH - self->x);
-            float overlap_y = fminf(self->y + (float)PLAYER_HEIGHT - other->y, other->y + (float)PLAYER_HEIGHT - self->y);
+            float overlap_x = fminf(self->x + PLAYER_WIDTH - other->x, other->x + PLAYER_WIDTH - self->x);
+            float overlap_y = fminf(self->y + PLAYER_HEIGHT - other->y, other->y + PLAYER_HEIGHT - self->y);
 
             if (overlap_x < overlap_y) {
                 if (self->x < other->x) {
@@ -316,7 +328,7 @@ void check_character_collisions(character *self, character *players, float dt) {
                 self->physics.vx = 0.0f;
             } else {
                 if (self->y < other->y && self->physics.vy >= 0.0f) {
-                    self->y = other->y - (float)PLAYER_HEIGHT;
+                    self->y = other->y - PLAYER_HEIGHT;
                     
                     // --- THE FIX ---
                     // Match the velocity of the player underneath so you move with them smoothly
@@ -327,7 +339,7 @@ void check_character_collisions(character *self, character *players, float dt) {
                     self->supported_by_player = true; // Mark that a player is holding us up
                     self->coyote_frames = COYOTE_MAX;
                 } else if (self->y > other->y && self->physics.vy < 0.0f) {
-                    self->y = other->y + (float)PLAYER_HEIGHT;
+                    self->y = other->y + PLAYER_HEIGHT;
                     self->physics.vy = 0.0f;
                 }
             }

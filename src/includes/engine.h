@@ -15,4 +15,6 @@ typedef struct {
 void engine_init(game_state_t *state);
 void engine_update(game_state_t *state, float dt);
 
+void spawn_new_player(bool active, game_state_t *state, int i);
+
 #endif // ENGINE_H

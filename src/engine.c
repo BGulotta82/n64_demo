@@ -56,33 +56,36 @@ void engine_update(game_state_t *state, float dt) {
     for (int i = 0; i < MAX_PLAYERS; i++) {
         bool active = input_update(&state->input[i], i);
 
-        if (active && !state->players[i].active) {
-            state->players[i].active = true;
-            if (i > 0) {
-                bool moving_right = state->players[0].vx > 0.0f;
-                int offset = moving_right ? -30 : 30; // spawn behind player 0 based on their movement direction
-                state->players[i].x = state->players[0].x + offset;
-                state->players[i].y = state->players[0].y;
-            }
-        }
+        spawn_new_player(active, state, i);
 
         if (!state->players[i].active) {
             continue;
         }
 
         int old_x = state->players[i].x;
-        int old_y = state->players[i].y;
-
+     
         character_update(&state->players[i], state->players, &state->input[i], dt);
 
         // Only constrain horizontal movement for same-screen multiplayer.
         if (!group_would_fit_horizontally(state, i, state->players[i].x)) {
             state->players[i].x = old_x;
         }
-
-        // vertical movement is intentionally allowed to continue normally
-        // so falling / jumping is not blocked by the screen edge rule
     }
-
+    
     state->frame++;
+}
+
+void spawn_new_player(bool active, game_state_t *state, int i)
+{
+    if (active && !state->players[i].active)
+    {
+        state->players[i].active = true;
+        if (i > 0)
+        {
+            bool moving_right = state->players[0].vx > 0.0f;
+            int offset = moving_right ? -30 : 30; // spawn behind player 0 based on their movement direction
+            state->players[i].x = state->players[0].x + offset;
+            state->players[i].y = state->players[0].y;
+        }
+    }
 }

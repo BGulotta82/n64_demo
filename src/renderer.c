@@ -7,19 +7,22 @@ extern camera_t camera;
 sprite_t* tilesheet;
 
 void renderer_init(void) {
-    display_init(RESOLUTION_640x480, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_DISABLED);
-    rdpq_init();
-    tilesheet  = sprite_load("rom:/tiles.sprite");
+    init_interrupts(); 
+   display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
+   rdpq_init();
+   tilesheet  = sprite_load("rom:/tiles.sprite");
 }
 
-void renderer_draw(const game_state_t *state) {
-    surface_t *disp = display_get();
-
+// Update your function signature to accept surface_t *disp
+void renderer_draw(surface_t *disp, const game_state_t *state) {
+    
+    // Attach the RDP queue directly to the locked surface
     rdpq_attach_clear(disp, NULL);
 
     draw_level();
     draw_characters(state);
 
+    // Detach and flip cleanly at the next VSync interval
     rdpq_detach_show();
 }
 

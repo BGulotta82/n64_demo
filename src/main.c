@@ -11,17 +11,17 @@ float calculate_delta_time(unsigned long long *last_ticks);
 int main(void) {
     game_state_t state;
 
-    console_set_render_mode(RENDER_MANUAL);
     dfs_init(DFS_DEFAULT_LOCATION);
+    renderer_init();
     timer_init();
     engine_init(&state);
-    renderer_init();
     load_level_binary("/level_test.bin");
     camera_init(&camera, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     unsigned long long last_ticks = timer_ticks();
 
-    while (1) {
+    while (1) 
+    {
         float dt = calculate_delta_time(&last_ticks);
 
         engine_update(&state, dt);
@@ -37,7 +37,15 @@ int main(void) {
         }
 
         camera_update(&camera, player_x, player_y, player_active, MAX_PLAYERS);
-        renderer_draw(&state);
+        
+        surface_t *disp;
+        disp = display_lock();
+        if (!disp) {
+            continue; 
+        }
+
+        // --- PASS THE LOCKED SURFACE DOWN ---
+        renderer_draw(disp, &state); 
     }
 }
 

@@ -19,19 +19,13 @@ void renderer_draw(const game_state_t *state) {
 
     rdpq_attach_clear(disp, NULL);
 
-    draw_background();
     draw_level();
-    draw_character(state);
+    draw_characters(state);
 
     rdpq_detach_show();
 }
 
-void draw_background() {
-    rdpq_set_mode_fill(RGBA32(0x00, 0x00, 0x00, 0));
-    rdpq_fill_rectangle(0, 0, 320, 240);
-}
-
-void draw_character(const game_state_t *state) {
+void draw_characters(const game_state_t *state) {
     for(int i = 0; i < MAX_PLAYERS; i++) {
         
         if (!state->players[i].active) {

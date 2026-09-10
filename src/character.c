@@ -248,19 +248,15 @@ void check_wall_collision(character *character)
 
 void check_grounded(character *character)
 {
-    // 1. Get horizontal footprint boundaries (tucked in slightly by 1px)
     int tile_left_x  = (int)(character->x + 1.0f) / TILE_SIZE;
     int tile_right_x = (int)(character->x + PLAYER_WIDTH - 1.0f) / TILE_SIZE;
 
-    // 2. Scan a short vertical range down to catch high-velocity falls
-    // We check from your previous ankles up to your current feet placement + 1px lookahead
+    // Scan a short vertical range down to catch high-velocity falls
     int start_tile_y = (int)(character->y + PLAYER_HEIGHT - 4.0f) / TILE_SIZE; 
     int end_tile_y   = (int)(character->y + PLAYER_HEIGHT + 1.0f) / TILE_SIZE;
 
-    // Safety clamp to ensure we don't scan backward loops
     if (start_tile_y > end_tile_y) start_tile_y = end_tile_y;
 
-    // 3. Scan the vertical row path crossed this frame
     for (int tile_y = start_tile_y; tile_y <= end_tile_y; tile_y++)
     {
         uint8_t tile_below_left  = get_tile_at(tile_left_x, tile_y);
@@ -268,17 +264,19 @@ void check_grounded(character *character)
 
         if (tile_below_left == 2 || tile_below_right == 2) 
         {
-            // Found the floor! Snap perfectly to the top edge of this tile row
-            character->y = (float)(tile_y * TILE_SIZE) - PLAYER_HEIGHT;
+            // --- THE GLUE FIX ---
+            // Lift the player by 0.01f off the grid line so bounding boxes 
+            // never clip into adjacent tiles during wall/ceiling iterations.
+            character->y = (float)(tile_y * TILE_SIZE) - PLAYER_HEIGHT - 0.01f;
+            
             character->physics.vy = 0.0f;
             character->physics.state |= GROUNDED;
             character->physics.state &= ~JUMPING;
             character->coyote_frames = COYOTE_MAX;
-            return; // Exit out immediately since we are safely grounded
+            return; 
         }
     }
 
-    // 4. If no solid tiles were crossed, player is in mid-air
     character->physics.state &= ~GROUNDED;
     if (character->coyote_frames > 0) {
         character->coyote_frames--;
@@ -287,17 +285,17 @@ void check_grounded(character *character)
 
 void check_ceiling_collision(character *character)
 {
-    // Double point check for the ceiling using a 1px vertical look-ahead offset
     int tile_left_x  = (int)(character->x + 1.0f) / TILE_SIZE;
     int tile_right_x = (int)(character->x + PLAYER_WIDTH - 1.0f) / TILE_SIZE;
-    int tile_top_y   = (int)(character->y - 1.0f) / TILE_SIZE; // -1.0f to check tile right above head
+    int tile_top_y   = (int)(character->y - 1.0f) / TILE_SIZE;
 
     uint8_t tile_above_left  = get_tile_at(tile_left_x, tile_top_y);
     uint8_t tile_above_right = get_tile_at(tile_right_x, tile_top_y);
 
     if (tile_above_left == 2 || tile_above_right == 2) {
-        // Snap perfectly underneath the solid ceiling tile
-        character->y = (float)((tile_top_y + 1) * TILE_SIZE);
+        // --- CEILING BIAS ---
+        // Push down by 0.01f so your head doesn't clip into the upper row
+        character->y = (float)((tile_top_y + 1) * TILE_SIZE) + 0.01f;
         if (character->physics.vy < 0.0f) {
             character->physics.vy = 0.0f;
         }

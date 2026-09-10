@@ -20,31 +20,40 @@ int main(void) {
 
     unsigned long long last_ticks = timer_ticks();
 
-    while (1) 
-    {
-        float dt = calculate_delta_time(&last_ticks);
+    while (1) {
+        // 1. SAFELY Lock the backbuffer. 
+        // If the RDP is completely busy or the TV isn't ready, this returns NULL
+        surface_t *disp = display_lock();
+        
+        // 2. THE FIXED VS-YNC PACER:
+        // If it returns NULL, we skip the rest of the frame calculations. 
+        // This naturally throttles your CPU loops directly to the N64's video interrupts!
+        if (!disp) {
+            continue; 
+        }
 
+        // 3. NOW calculate delta time. Because the loop is throttled by the display lock, 
+        // dt will be beautifully stable (approx 0.0166s / 60 FPS).
+        float dt = calculate_delta_time(&last_ticks);
+        if (dt > 0.1f) dt = 0.1f; 
+
+        // 4. Run your game logic updates
         engine_update(&state, dt);
 
+        // 5. Gather tracking data and apply sub-pixel rounding to prevent the ground-glitch
         int player_x[MAX_PLAYERS];
         int player_y[MAX_PLAYERS];
         bool player_active[MAX_PLAYERS];
 
         for (int i = 0; i < MAX_PLAYERS; i++) {
-            player_x[i] = state.players[i].x;
-            player_y[i] = state.players[i].y;
+            player_x[i] = (int)(state.players[i].x + 0.5f);
+            player_y[i] = (int)(state.players[i].y + 0.5f);
             player_active[i] = state.players[i].active;
         }
 
         camera_update(&camera, player_x, player_y, player_active, MAX_PLAYERS);
         
-        surface_t *disp;
-        disp = display_lock();
-        if (!disp) {
-            continue; 
-        }
-
-        // --- PASS THE LOCKED SURFACE DOWN ---
+        // 6. Draw your scene passing down the valid locked pointer
         renderer_draw(disp, &state); 
     }
 }

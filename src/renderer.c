@@ -28,16 +28,18 @@ void renderer_draw(surface_t *disp, const game_state_t *state) {
 
 void draw_characters(const game_state_t *state) {
     for(int i = 0; i < MAX_PLAYERS; i++) {
-        
         if (!state->players[i].active) {
-            continue; // Skip inactive players
+            continue; 
         }
 
-        int screen_x = state->players[i].x - camera.x;
-        int screen_y = state->players[i].y - camera.y;
+        // --- ROUND THE PHYSICAL POSITIONS ---
+        int screen_x = (int)(state->players[i].x + 0.5f) - camera.x;
+        int screen_y = (int)(state->players[i].y + 0.5f) - camera.y;
 
         rdpq_set_mode_fill(RGBA32(0xFF, 0xFF, 0xFF, 0));
-        rdpq_fill_rectangle(screen_x, screen_y, screen_x + PLAYER_WIDTH, screen_y + PLAYER_HEIGHT);
+        
+        // Libdragon fill rect bounds are exclusive, matching our macro variables perfectly
+        rdpq_fill_rectangle(screen_x, screen_y, screen_x + (int)PLAYER_WIDTH, screen_y + (int)PLAYER_HEIGHT);
     }
 }
 

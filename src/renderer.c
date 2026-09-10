@@ -10,8 +10,6 @@ void renderer_init(void) {
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
     rdpq_init();
     tilesheet  = sprite_load("rom:/tiles.sprite");
-    tilesheet->hslices = 2;
-    tilesheet->vslices = 1;
 }
 
 void renderer_draw(const game_state_t *state) {

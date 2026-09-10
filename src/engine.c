@@ -59,7 +59,9 @@ void engine_update(game_state_t *state, float dt) {
         if (active && !state->players[i].active) {
             state->players[i].active = true;
             if (i > 0) {
-                state->players[i].x = state->players[0].x + (i * 20);
+                bool moving_right = state->players[0].vx > 0.0f;
+                int offset = moving_right ? -30 : 30; // spawn behind player 0 based on their movement direction
+                state->players[i].x = state->players[0].x + offset;
                 state->players[i].y = state->players[0].y;
             }
         }

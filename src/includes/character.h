@@ -44,6 +44,8 @@ typedef struct {
     int ai_home_row;         
     int ai_jump_cooldown;    
     bool is_enemy;
+    int width;   
+    int height; 
     character_state state;                
     character_type type;      
 } character_meta;

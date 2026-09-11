@@ -2,19 +2,42 @@
 #include "level.h"
 
 float physics_constants[NUMBER_OF_CHARACTER_TYPES][9] = {
-    // KNIGHT: Solid jump height boost to clear enemies easily
-    {3.0f, 150.0f, 1250.0f, 1150.0f, 600.0f, 180.0f, 52.0f, 0.24f, 400.0f },   
-    // ELF: Agility class. Highest jump height (56px) for effortless stomping
-    {3.5f, 160.0f, 1300.0f, 1100.0f, 650.0f, 170.0f, 56.0f, 0.22f, 400.0f},   
-    // WIZARD: Floatier style jump. Increased height with slightly longer peak time
-    {2.5f, 140.0f, 1200.0f, 1200.0f, 550.0f, 190.0f, 48.0f, 0.28f, 400.0f},    
-    // DWARF: Heavy class. Respectable jump height increase while keeping a dense feel
-    {2.8f, 145.0f, 1225.0f, 1175.0f, 575.0f, 185.0f, 46.0f, 0.25f, 400.0f},    
-    // --- ENEMY PHYSICS (Kept slow and distinct) ---
-    // GOOMBA
-    {1.0f, 40.0f,  400.0f,  600.0f,  100.0f, 100.0f, 32.0f, 0.24f, 400.0f},
-    // SKELETON
-    {2.0f, 50.0f,  500.0f,  600.0f,  300.0f, 150.0f, 16.0f, 0.24f, 400.0f}
+    // Column Guide:
+    //: Turn Multiplier (Responsiveness when snapping opposite direction)
+    //: Max Speed (Cap on horizontal physics velocity)
+    //: Ground Acceleration (Rate of horizontal speed buildup on floor)
+    //: Ground Friction (Deceleration stopping rate when idling)
+    //: Air Acceleration (Horizontal steering push while airborne)
+    //: Air Friction (Wind resistance slowing forward momentum in air)
+    //: Jump Height (Target peak distance in absolute pixels)
+    //: Jump Time To Peak (Duration in seconds to reach the peak height)
+    //: Terminal Velocity (Maximum allowed falling velocity)
+
+    // =========================================================================
+    // --- HERO CLASSES (Ramp-up time extended, braking friction tightened) ---
+    // =========================================================================
+    
+    // KNIGHT: Solid, dependable, medium pacing. Takes ~18 frames to hit max speed.
+    { 2.5f, 120.0f, 400.0f, 950.0f, 250.0f, 150.0f, 50.0f, 0.25f, 400.0f },   
+    
+    // ELF: Agile and snappy. Quick acceleration ramp-up, snappy stops, high floaty jump.
+    { 3.0f, 135.0f, 550.0f, 1100.0f, 350.0f, 120.0f, 56.0f, 0.22f, 400.0f },   
+    
+    // WIZARD: Slowest ramp-up speed, lightweight floaty drift feel in the air.
+    { 2.0f, 110.0f, 300.0f, 800.0f, 200.0f, 100.0f, 48.0f, 0.28f, 400.0f },    
+    
+    // DWARF: High mass weight class. Slow to start moving, but high friction stops him fast.
+    { 2.2f, 115.0f, 350.0f, 1200.0f, 180.0f, 180.0f, 44.0f, 0.26f, 400.0f },    
+
+    // =========================================================================
+    // --- ENEMY CLASSES (Kept intentionally predictable and slow) ---
+    // =========================================================================
+    
+    // GOOMBA: Continuous zombie march pacing.
+    { 1.0f, 35.0f,  200.0f, 600.0f,  100.0f, 100.0f, 32.0f, 0.24f, 400.0f },
+    
+    // SKELETON: Snappy hunter, quick bursts.
+    { 2.0f, 50.0f,  350.0f, 600.0f,  300.0f, 150.0f, 16.0f, 0.24f, 400.0f }
 };
 
 void character_init(character *character, character_type type, bool is_enemy) {
@@ -28,8 +51,12 @@ void character_init(character *character, character_type type, bool is_enemy) {
     character->meta.invincibility_frames = 0;
     character->meta.ai_home_row = 0;
     character->meta.ai_jump_cooldown = 0;
-    
+
     character->meta.is_enemy = is_enemy;
+    if (!is_enemy) {
+        character->meta.width = PLAYER_WIDTH;
+        character->meta.height = PLAYER_HEIGHT;
+    }
 
     switch(type) {
         case KNIGHT:
@@ -46,9 +73,13 @@ void character_init(character *character, character_type type, bool is_enemy) {
         break;
         case GOOMBA:
             character->meta.health = 2;
+            character->meta.width = 20;
+            character->meta.height = 16;
         break;
         case SKELETON:
             character->meta.health = 1;
+            character->meta.width = 14;
+            character->meta.height = 28;
         break;
     }
 
@@ -212,31 +243,26 @@ void handle_move_right(character *character, input_state *input, float dt)
 
 void handle_jump(character *self, character *players, input_state *input)
 {
-    // Check if jump button is pressed
     if (input->active_actions & ACTION_JUMP)
     {
-        // Allowed to jump if grounded on a tile OR supported by a player
         if ((self->physics.state & GROUNDED) || self->meta.state & SUPPORTED_BY_PLAYER || self->meta.coyote_frames > 0)
         {
-            // Apply the jump velocity macro calculation
             self->physics.vy = self->physics.jump_force;
             
-            // Clear ground states
             self->physics.state &= ~GROUNDED;
             self->physics.state |= JUMPING;
             self->meta.coyote_frames = 0;
 
             // --- MOMENTUM TRANSFER ---
-            // If we are jumping off a teammate, inherit their X speed so we don't drop straight down
             if (self->meta.state & SUPPORTED_BY_PLAYER && players) {
                 for (int i = 0; i < MAX_PLAYERS; i++) {
                     character *other = &players[i];
                     if (other == self || !(other->meta.state & ACTIVE)) continue;
 
-                    // Verify if this is the player directly beneath our feet
-                    if (self->x < other->x + PLAYER_WIDTH &&
-                        self->x + PLAYER_WIDTH > other->x &&
-                        fabsf((self->y + PLAYER_HEIGHT) - other->y) < 2.0f) {
+                    // FIXED: Dynamic size comparisons for stacked calculations
+                    if (self->x < other->x + (float)other->meta.width &&
+                        self->x + (float)self->meta.width > other->x &&
+                        fabsf((self->y + (float)self->meta.height) - other->y) < 2.0f) {
                         
                         self->physics.vx += other->physics.vx; 
                         break;
@@ -249,17 +275,15 @@ void handle_jump(character *self, character *players, input_state *input)
 
 void check_wall_collision(character *character, uint8_t *map_data)
 {
-    // 1. Calculate X tile coordinates for left and right edges
+    // FIXED: Uses local meta.width for edge calculation
     int tile_left_x  = (int)(character->x) / TILE_SIZE;
-    int tile_right_x = (int)(character->x + PLAYER_WIDTH) / TILE_SIZE;
+    int tile_right_x = (int)(character->x + (float)character->meta.width) / TILE_SIZE;
 
-    // 2. Calculate Y tile coordinates for 3 vertical check points (Head, Torso, Feet)
-    // Tucked in closer by 0.1f so the feet checks don't clip the floor tile beneath you
+    // FIXED: Midpoint and feet heights pull from unique meta.height
     int tile_head_y  = (int)(character->y + 0.1f) / TILE_SIZE;
-    int tile_torso_y = (int)(character->y + (PLAYER_HEIGHT / 2.0f)) / TILE_SIZE;
-    int tile_feet_y  = (int)(character->y + PLAYER_HEIGHT - 0.1f) / TILE_SIZE;
+    int tile_torso_y = (int)(character->y + ((float)character->meta.height / 2.0f)) / TILE_SIZE;
+    int tile_feet_y  = (int)(character->y + (float)character->meta.height - 0.1f) / TILE_SIZE;
 
-    // 3. Look up all tile values from the binary matrix array
     uint8_t left_head  = get_tile_at(map_data, tile_left_x, tile_head_y);
     uint8_t left_torso = get_tile_at(map_data, tile_left_x, tile_torso_y);
     uint8_t left_feet  = get_tile_at(map_data, tile_left_x, tile_feet_y);
@@ -268,33 +292,30 @@ void check_wall_collision(character *character, uint8_t *map_data)
     uint8_t right_torso = get_tile_at(map_data, tile_right_x, tile_torso_y);
     uint8_t right_feet  = get_tile_at(map_data, tile_right_x, tile_feet_y);
 
-    // 4. Resolve left wall collisions
     if (left_head == 2 || left_torso == 2 || left_feet == 2) {
         character->x = (float)((tile_left_x + 1) * TILE_SIZE);
         character->physics.vx = 0.0f;
     }
     
-    // 5. Resolve right wall collisions
     if (right_head == 2 || right_torso == 2 || right_feet == 2) {
-        character->x = (float)(tile_right_x * TILE_SIZE - PLAYER_WIDTH);
+        // FIXED: Pushes left wall pushback bounds using local meta.width
+        character->x = (float)(tile_right_x * TILE_SIZE - character->meta.width);
         character->physics.vx = 0.0f;
     }
 }
 
 void check_ceiling_collision(character *character, uint8_t *map_data)
 {
-    // Double point check for the ceiling using a tiny sub-pixel look-ahead
+    // FIXED: Right edge check bounds use local meta.width
     int tile_left_x  = (int)(character->x + 1.0f) / TILE_SIZE;
-    int tile_right_x = (int)(character->x + PLAYER_WIDTH - 1.0f) / TILE_SIZE;
+    int tile_right_x = (int)(character->x + (float)character->meta.width - 1.0f) / TILE_SIZE;
     
-    // Changed from -1.0f to -0.01f so standing under a low ceiling doesn't register a collision
     int tile_top_y   = (int)(character->y - 0.01f) / TILE_SIZE; 
 
     uint8_t tile_above_left  = get_tile_at(map_data, tile_left_x, tile_top_y);
     uint8_t tile_above_right = get_tile_at(map_data, tile_right_x, tile_top_y);
 
     if (tile_above_left == 2 || tile_above_right == 2) {
-        // Push down and apply a tiny sub-pixel cushion down so you don't instantly clip the roof
         character->y = (float)((tile_top_y + 1) * TILE_SIZE) + 0.01f;
         if (character->physics.vy < 0.0f) {
             character->physics.vy = 0.0f;
@@ -304,14 +325,13 @@ void check_ceiling_collision(character *character, uint8_t *map_data)
 
 void check_grounded(character *character, uint8_t *map_data)
 {
+    // FIXED: Uses unique meta.width for foot columns
     int tile_left_x  = (int)(character->x + 1.0f) / TILE_SIZE;
-    int tile_right_x = (int)(character->x + PLAYER_WIDTH - 1.0f) / TILE_SIZE;
+    int tile_right_x = (int)(character->x + (float)character->meta.width - 1.0f) / TILE_SIZE;
 
-    // Scan vertical range down
-    int start_tile_y = (int)(character->y + PLAYER_HEIGHT - 4.0f) / TILE_SIZE; 
-    
-    // Changed from +1.0f to +0.01f to match our precise sub-pixel cushion lift
-    int end_tile_y   = (int)(character->y + PLAYER_HEIGHT + 0.01f) / TILE_SIZE;
+    // FIXED: Checks scan ranges lower using dynamic meta.height properties
+    int start_tile_y = (int)(character->y + (float)character->meta.height - 4.0f) / TILE_SIZE; 
+    int end_tile_y   = (int)(character->y + (float)character->meta.height + 0.01f) / TILE_SIZE;
 
     if (start_tile_y > end_tile_y) start_tile_y = end_tile_y;
 
@@ -322,8 +342,8 @@ void check_grounded(character *character, uint8_t *map_data)
 
         if (tile_below_left == 2 || tile_below_right == 2) 
         {
-            // Lift by 0.01f off the grid floor row so you fit perfectly in 2-tile high gaps
-            character->y = (float)(tile_y * TILE_SIZE) - PLAYER_HEIGHT - 0.01f;
+            // FIXED: Floor landing snap position lifts using dynamic character meta.height
+            character->y = (float)(tile_y * TILE_SIZE) - (float)character->meta.height - 0.01f;
             character->physics.vy = 0.0f;
             character->physics.state |= GROUNDED;
             character->physics.state &= ~JUMPING;
@@ -345,13 +365,14 @@ void check_character_collisions(character *self, character *players, float dt) {
         character *other = &players[i];
         if (other == self || !(other->meta.state & ACTIVE)) continue;
 
-        if (self->x < other->x + PLAYER_WIDTH &&
-            self->x + PLAYER_WIDTH > other->x &&
-            self->y < other->y + PLAYER_HEIGHT &&
-            self->y + PLAYER_HEIGHT > other->y) {
+        // FIXED: Multi-player collision overlapping checks use independent meta widths/heights
+        if (self->x < other->x + (float)other->meta.width &&
+            self->x + (float)self->meta.width > other->x &&
+            self->y < other->y + (float)other->meta.height &&
+            self->y + (float)self->meta.height > other->y) {
 
-            float overlap_x = fminf(self->x + PLAYER_WIDTH - other->x, other->x + PLAYER_WIDTH - self->x);
-            float overlap_y = fminf(self->y + PLAYER_HEIGHT - other->y, other->y + PLAYER_HEIGHT - self->y);
+            float overlap_x = fminf(self->x + (float)self->meta.width - other->x, other->x + (float)other->meta.width - self->x);
+            float overlap_y = fminf(self->y + (float)self->meta.height - other->y, other->y + (float)other->meta.height - self->y);
 
             if (overlap_x < overlap_y) {
                 if (self->x < other->x) {
@@ -362,18 +383,18 @@ void check_character_collisions(character *self, character *players, float dt) {
                 self->physics.vx = 0.0f;
             } else {
                 if (self->y < other->y && self->physics.vy >= 0.0f) {
-                    self->y = other->y - PLAYER_HEIGHT;
+                    // FIXED: Snapping to teammate shoulders pulls from local meta height definitions
+                    self->y = other->y - (float)self->meta.height;
                     
-                    // --- THE FIX ---
-                    // Match the velocity of the player underneath so you move with them smoothly
-                    self->x += other->physics.vx * dt; // Ensure dt is passed into this function or handled
+                    self->x += other->physics.vx * dt; 
                     
                     self->physics.vy = 0.0f;
                     self->physics.state |= GROUNDED;
-                    self->meta.state |= SUPPORTED_BY_PLAYER; // Mark that a player is holding us up
+                    self->meta.state |= SUPPORTED_BY_PLAYER; 
                     self->meta.coyote_frames = COYOTE_MAX;
                 } else if (self->y > other->y && self->physics.vy < 0.0f) {
-                    self->y = other->y + PLAYER_HEIGHT;
+                    // FIXED: Head bump displacement pulls from teammate's unique height profile
+                    self->y = other->y + (float)other->meta.height;
                     self->physics.vy = 0.0f;
                 }
             }

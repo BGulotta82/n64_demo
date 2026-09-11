@@ -62,9 +62,11 @@ void draw_single_character(const character *chr) {
     int screen_x = (int)(chr->x + 0.5f) - camera.x;
     int screen_y = (int)(chr->y + 0.5f) - camera.y;
 
-    // Culling: Skip drawing if the character is entirely off the screen layout
-    if (screen_x + PLAYER_WIDTH < 0 || screen_x > SCREEN_WIDTH ||
-        screen_y + PLAYER_HEIGHT < 0 || screen_y > SCREEN_HEIGHT) {
+    // =========================================================================
+    // --- UPDATED CULLING: Safely handles multi-scaled entity boxes ---
+    // =========================================================================
+    if (screen_x + chr->meta.width < 0 || screen_x > SCREEN_WIDTH ||
+        screen_y + chr->meta.height < 0 || screen_y > SCREEN_HEIGHT) {
         return; 
     }
 
@@ -72,21 +74,39 @@ void draw_single_character(const character *chr) {
     sprite_t *sheet = character_sprites[chr->meta.type];
     if (!sheet) return;
 
-    // --- ANIMATION FRAME SELECTION ---
-    // If your character sheets contain multiple animation frames, you can use Tiled parameters 
-    // or frame indexes here. For now, we will draw the first frame (0,0) as a standalone asset:
+    // =========================================================================
+    // --- DYNAMIC HARDWARE SCALING FACTOR CALCULATION ---
+    // =========================================================================
+    // Base asset dimensions baked directly into your binary image headers
+    float asset_width  = (float)sheet->width;
+    float asset_height = (float)sheet->height;
+
+    // Calculate the hardware scale multiplier ratio (Target size / Source asset size)
+    // If a 16x32 asset needs to fill a 16x16 Goomba boundary, scale_y drops to 0.5f!
+    float dynamic_scale_x = (float)chr->meta.width  / asset_width;
+    float dynamic_scale_y = (float)chr->meta.height / asset_height;
+
+    // // Flip horizontal mapping scaling factor if the character turns left
+    // if (chr->physics.facing_direction == FACING_LEFT) {
+    //     dynamic_scale_x = -dynamic_scale_x; // Libdragon flips textures via negative scales!
+    // }
+
     rdpq_blitparms_t parms = {
         .s0 = 0,
         .t0 = 0,
-        .width = (int)PLAYER_WIDTH,
-        .height = (int)PLAYER_HEIGHT,
+        .width  = sheet->width,   // Read the FULL asset bounds from the sheet
+        .height = sheet->height,  // Read the FULL asset bounds from the sheet
+        
+        // Pass our calculated multipliers straight to the N64 Reality Coprocessor!
+        .scale_x = dynamic_scale_x,
+        .scale_y = dynamic_scale_y,
     };
 
-    // If your sprites are transparent (CI4/CI8 with palettes), configure transparency modes
+    // Configure standard transparency pipelines
     rdpq_set_mode_standard(); 
-    rdpq_mode_alphacompare(1); // Enables transparency key passing
+    rdpq_mode_alphacompare(1); 
 
-    // Render the sprite directly via RDP
+    // Render the dynamically scaled sprite via RDP
     rdpq_sprite_blit(sheet, screen_x, screen_y, &parms);
 }
 

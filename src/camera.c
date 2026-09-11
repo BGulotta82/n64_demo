@@ -30,7 +30,7 @@ void camera_init(camera_t *cam, int world_width, int world_height, int screen_wi
     cam->y = desired_y;
 }
 
-void camera_update(camera_t *cam, int *player_x, int *player_y, bool *player_active, int player_count, float dt) {
+void camera_update(camera_t *cam, int *player_x, int *player_y, int *player_w, int *player_h, bool *player_active, int player_count, float dt) {
     int active_count = 0;
     
     int min_x = 999999;
@@ -45,11 +45,12 @@ void camera_update(camera_t *cam, int *player_x, int *player_y, bool *player_act
 
         active_count++;
         
+        // FIXED: Track boundaries using the passed-in dimension arrays instead of globals!
         if (player_x[i] < min_x) min_x = player_x[i];
-        if (player_x[i] + PLAYER_WIDTH > max_x) max_x = player_x[i] + PLAYER_WIDTH;
+        if (player_x[i] + player_w[i] > max_x) max_x = player_x[i] + player_w[i];
 
         if (player_y[i] < min_y) min_y = player_y[i];
-        if (player_y[i] + PLAYER_HEIGHT > max_y) max_y = player_y[i] + PLAYER_HEIGHT;
+        if (player_y[i] + player_h[i] > max_y) max_y = player_y[i] + player_h[i];
     }
 
     if (active_count == 0) {
@@ -74,14 +75,11 @@ void camera_update(camera_t *cam, int *player_x, int *player_y, bool *player_act
     // =========================================================================
     // --- THE SNAP FIX: SMOOTH INTEGER INTERPOLATION ---
     // =========================================================================
-    // Calculate the distance left to travel on this frame
     int error_x = desired_x - cam->x;
     int error_y = desired_y - cam->y;
 
-    // Smooth tracking modifier constant (Higher = faster follow, Lower = looser glide)
     float tracking_speed = 6.0f;
 
-    // Convert the step vector safely back to an integer shift distance
     cam->x += (int)((float)error_x * tracking_speed * dt);
     cam->y += (int)((float)error_y * tracking_speed * dt);
 }

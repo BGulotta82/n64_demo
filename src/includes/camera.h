@@ -13,6 +13,6 @@ typedef struct {
 } camera_t;
 
 void camera_init(camera_t *cam, int world_width, int world_height, int screen_width, int screen_height, float spawn_x, float spawn_y);
-void camera_update(camera_t *cam, int *player_x, int *player_y, bool *player_active, int player_count, float dt);
+void camera_update(camera_t *cam, int *player_x, int *player_y, int *player_w, int *player_h, bool *player_active, int player_count, float dt);
 
 #endif

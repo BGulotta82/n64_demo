@@ -42,18 +42,22 @@ int main(void) {
         engine_update(&state, dt);
 
         // 5. Gather tracking data and apply sub-pixel rounding to prevent the ground-glitch
-        int player_x[MAX_PLAYERS];
-        int player_y[MAX_PLAYERS];
-        bool player_active[MAX_PLAYERS];
+        int cam_x[MAX_PLAYERS];
+        int cam_y[MAX_PLAYERS];
+        int cam_w[MAX_PLAYERS];
+        int cam_h[MAX_PLAYERS];
+        bool cam_active[MAX_PLAYERS];
 
         for (int i = 0; i < MAX_PLAYERS; i++) {
-            player_x[i] = (int)(state.players[i].x + 0.5f);
-            player_y[i] = (int)(state.players[i].y + 0.5f);
-            player_active[i] = state.players[i].meta.state & ACTIVE;
+            cam_x[i]      = (int)state.players[i].x;
+            cam_y[i]      = (int)state.players[i].y;
+            cam_w[i]      = state.players[i].meta.width;
+            cam_h[i]      = state.players[i].meta.height;
+            cam_active[i] = (state.players[i].meta.state & ACTIVE) != 0; // Fixed bitwise verification flag
         }
 
-        camera_update(&camera, player_x, player_y, player_active, MAX_PLAYERS, dt);
-        
+        camera_update(&camera, cam_x, cam_y, cam_w, cam_h, cam_active, MAX_PLAYERS, dt);
+
         // 6. Draw your scene passing down the valid locked pointer
         renderer_draw(disp, &state); 
     }

@@ -13,9 +13,9 @@ typedef struct {
 
 // Define your static level playlist mapping parameters
 static const stage_config_t level_playlist[MAX_LEVELS] = {
-    { "/level1.bin", 99.0f },
-    { "/level1.bin", 30.0f },
-    { "/level1.bin", 20.0f }
+    { "/level1.bin", 60.0f },
+    { "/level1.bin", 60.0f },
+    { "/level1.bin", 60.0f }
 };
 
 void engine_init(game_state_t *state) {
@@ -36,6 +36,7 @@ static bool group_would_fit_horizontally(const game_state_t *state, int player_i
     int active_count = 0;
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
+        // Safe bitwise validation check over active player status slots
         if (!(state->players[i].meta.state & ACTIVE)) {
             continue;
         }
@@ -48,7 +49,8 @@ static bool group_would_fit_horizontally(const game_state_t *state, int player_i
         }
 
         int left = px;
-        int right = px + PLAYER_WIDTH;
+        // FIXED: Dynamically pulls the precise character width parameter out of meta
+        int right = px + state->players[i].meta.width;
 
         if (left < min_x) min_x = left;
         if (right > max_x) max_x = right;
@@ -222,14 +224,14 @@ void spawn_new_player(character *self, character *players, level_t *level)
         // --- LEVEL BOUNDARY SAFETY WALLS ---
         // Keep late spawns within the map dimensions so they don't spawn off-screen
         if (target_x < 0.0f) target_x = 0.0f;
-        if (target_x + PLAYER_WIDTH > (float)(MAP_WIDTH * TILE_SIZE)) {
-            target_x = (float)(MAP_WIDTH * TILE_SIZE) - PLAYER_WIDTH;
+        if (target_x + (float)self->meta.width > (float)(MAP_WIDTH * TILE_SIZE)) {
+            target_x = (float)(MAP_WIDTH * TILE_SIZE) - (float)self->meta.width;
         }
 
         // --- TILE OVERLAP PREVENTER ---
         // Sample the tiles where the player's torso would spawn
-        int test_tile_x = (int)(target_x + (PLAYER_WIDTH / 2.0f)) / TILE_SIZE;
-        int test_tile_y = (int)(target_y + (PLAYER_HEIGHT / 2.0f)) / TILE_SIZE;
+        int test_tile_x = (int)(target_x + ((float)self->meta.width / 2.0f)) / TILE_SIZE;
+        int test_tile_y = (int)(target_y + ((float)self->meta.height / 2.0f)) / TILE_SIZE;
 
         uint8_t target_tile_block = get_tile_at(level->map_data, test_tile_x, test_tile_y);
 
@@ -244,7 +246,7 @@ void spawn_new_player(character *self, character *players, level_t *level)
             self->y = target_y;
         }
     }
-}        
+}
 
 void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state *dummy_input, float dt) {
     dummy_input->active_actions = 0;
@@ -261,7 +263,7 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
 
     if (enemy->x < (cam_left - buffer)  || enemy->x > (cam_right + buffer) ||
         enemy->y < (cam_top - buffer)   || enemy->y > (cam_bottom + buffer)) {
-        enemy->meta.state &= ~SPAWNED; // Force un-spawn status if scrolled off-camera
+        enemy->meta.state &= ~SPAWNED; 
         return; 
     }
 
@@ -269,27 +271,21 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
     // 2. TIMING LAZY INITIALIZATION: Lock home row upon hitting screen view
     // =========================================================================
     if (!(enemy->meta.state & SPAWNED)) {
-        enemy->meta.ai_home_row = (int)floorf((enemy->y + (float)PLAYER_HEIGHT + 4.0f) / (float)TILE_SIZE);
+        enemy->meta.ai_home_row = (int)floorf((enemy->y + (float)enemy->meta.height + 4.0f) / (float)TILE_SIZE);
         enemy->meta.state |= SPAWNED; 
     }
 
     // =========================================================================
-    // 3. --- FIXED: SELF-HEALING HOME ROW SAFETY TRACKER ---
+    // 3. --- SELF-HEALING HOME ROW SAFETY TRACKER ---
     // =========================================================================
     int enemy_home_row = enemy->meta.ai_home_row;
-    int enemy_actual_current_row = (int)floorf((enemy->y + (float)PLAYER_HEIGHT + 4.0f) / (float)TILE_SIZE);
+    int enemy_actual_current_row = (int)floorf((enemy->y + (float)enemy->meta.height + 4.0f) / (float)TILE_SIZE);
 
-    // If the enemy has physically left its home row (due to a fall or knockback)
     if (enemy_actual_current_row != enemy_home_row) {
-        
-        // Wait until the physics engine flags them as completely stable on solid ground
         if (enemy->physics.state & GROUNDED) {
-            // SUCCESS: Adapt to the new platform seamlessly!
             enemy->meta.ai_home_row = enemy_actual_current_row;
-            enemy_home_row = enemy_actual_current_row; // Update local tracker variable
+            enemy_home_row = enemy_actual_current_row; 
         } else {
-            // While they are actively falling through mid-air, clear their movement inputs 
-            // so they drop straight down smoothly instead of drifting sideways.
             return; 
         }
     }
@@ -304,10 +300,10 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
         const character *player = &state->players[p];
         if (!(player->meta.state & ACTIVE)) continue;
 
-        int player_current_row = (int)floorf((player->y + (float)PLAYER_HEIGHT + 4.0f) / (float)TILE_SIZE);
+        int player_current_row = (int)floorf((player->y + (float)player->meta.height + 4.0f) / (float)TILE_SIZE);
 
         if (player_current_row != enemy_home_row) {
-            continue; // Player is on a completely different tracking plane; skip
+            continue; 
         }
 
         float dist_x = fabsf(player->x - enemy->x);
@@ -324,19 +320,16 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
     bool wants_move_right = false;
 
     if (closest_player == NULL) {
-        // Idle Guard Patrol routing using basic physics velocities
         if (enemy->physics.vx > 0.1f) {
             wants_move_right = true;
         } else if (enemy->physics.vx < -0.1f) {
             wants_move_left = true;
         } else {
-            // Break dead-center locks rhythmically using your new metadata frame property
             wants_move_right = (enemy->meta.frame % 2 == 0); 
             wants_move_left  = !wants_move_right;
         }
     } 
     else {
-        // FIXED: Run intent destination logic for BOTH types BEFORE the cliff radar ticks
         if (enemy->meta.type == GOOMBA) {
             ai_behavior_goomba(enemy, closest_player, &wants_move_left, &wants_move_right);
         }
@@ -353,14 +346,13 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
     // 6. RADAR EDGE SCANNER: Verify floor stability ahead (DYNAMIC VELOCITY LOGIC)
     // =========================================================================
     bool hit_cliff_edge = false;
-    int ground_tile_y = (int)floorf((enemy->y + (float)PLAYER_HEIGHT + 4.0f) / (float)TILE_SIZE); 
+    int ground_tile_y = (int)floorf((enemy->y + (float)enemy->meta.height + 4.0f) / (float)TILE_SIZE); 
 
-    // Expand the scanning ray dynamically based on frame speed (vx * dt) to catch fast ticks
-    float dynamic_forward_look = 4.0f + (fabsf(enemy->physics.vx) * dt); // Using frame dt parameter passing
+    float dynamic_forward_look = 4.0f + (fabsf(enemy->physics.vx) * dt);
 
     if (ground_tile_y < MAP_HEIGHT) {
         if (wants_move_right) {
-            int check_x = (int)floorf((enemy->x + (float)PLAYER_WIDTH + dynamic_forward_look) / (float)TILE_SIZE);
+            int check_x = (int)floorf((enemy->x + (float)enemy->meta.width + dynamic_forward_look) / (float)TILE_SIZE);
             if (check_x < MAP_WIDTH) {
                 if (state->level.map_data[ground_tile_y * MAP_WIDTH + check_x] == 0) { 
                     wants_move_right = false;
@@ -485,6 +477,11 @@ void check_pve_combat(game_state_t *state) {
             player->meta.invincibility_frames--;
         }
 
+        // --- CLUSTER SHIELD CONFIGURATION ---
+        // Cache initial downward speed before evaluation loop alters it dynamically
+        float initial_frame_vy = player->physics.vy;
+        bool registered_stomp_this_frame = false;
+
         for (int e = 0; e < MAX_ENEMIES; e++) {
             character *enemy = &state->enemies[e];
             if (!(enemy->meta.state & ACTIVE)) continue;
@@ -495,21 +492,23 @@ void check_pve_combat(game_state_t *state) {
             int e_x = (int)(enemy->x + 0.5f);
             int e_y = (int)(enemy->y + 0.5f);
 
-            if (p_x < e_x + (int)PLAYER_WIDTH &&
-                p_x + (int)PLAYER_WIDTH > e_x &&
-                p_y < e_y + (int)PLAYER_HEIGHT &&
-                p_y + (int)PLAYER_HEIGHT > e_y) {
+            // FIXED: Bounding box overlap calculation uses unique local meta metrics
+            if (p_x < e_x + enemy->meta.width &&
+                p_x + player->meta.width > e_x &&
+                p_y < e_y + enemy->meta.height &&
+                p_y + player->meta.height > e_y) {
 
                 // =========================================================================
-                // --- DESIGN CRITERIA: CRISP STOMP WINDOW DETECTOR ---
+                // --- DESIGN CRITERIA: CRISP STOMP WINDOW DETECTOR (DYNAMIC SIZES) ---
                 // =========================================================================
-                float player_bottom = player->y + PLAYER_HEIGHT;
+                // FIXED: Calculates player bottom edge relative to their specific height
+                float player_bottom = player->y + (float)player->meta.height;
                 
-                // Set the stomp threshold to the top 25% of the enemy structure
-                float enemy_stomp_threshold = enemy->y + (PLAYER_HEIGHT * 0.25f);
+                // FIXED: Calculates enemy stomp threshold relative to the target's specific height
+                float enemy_stomp_threshold = enemy->y + ((float)enemy->meta.height * 0.25f);
 
-                // STOMP CHECK: Must be moving down, and feet must be in the top portion of the target
-                if (player->physics.vy > 0.0f && player_bottom <= enemy_stomp_threshold + 8.0f) {
+                // STOMP CHECK: Uses our cached vertical frame vector to protect cluster overlaps
+                if (initial_frame_vy > 0.0f && player_bottom <= enemy_stomp_threshold + 8.0f) {
                     enemy->meta.health--;
                     if (enemy->meta.health <= 0) {
                         enemy->meta.state &= ~ACTIVE;
@@ -523,16 +522,23 @@ void check_pve_combat(game_state_t *state) {
                     player->physics.state |= JUMPING;
                     player->meta.coyote_frames = 0;
 
+                    registered_stomp_this_frame = true;
                     continue; // Safe! Skips out to process the next entity slot
                 }               
-                else if (player->meta.invincibility_frames == 0) { // Hurt Check
+                // HURT CHECK: Enforces cluster protection so a successful stomp shield won't poison a teammate frame
+                else if (!registered_stomp_this_frame && player->meta.invincibility_frames == 0) { 
                     player->meta.health--;
-                    if (player->meta.health == 0) {
+                    if (player->meta.health <= 0) {
+                        player->meta.health = 0; // Absolute clamp
                         player->meta.state &= ~ACTIVE;
-                        break;
+                        break; // Safely breaks enemy scanning loop for this dead player slot
                     }
 
-                    if (player->x + (PLAYER_WIDTH / 2.0f) < enemy->x + (PLAYER_WIDTH / 2.0f)) {
+                    // FIXED: Calculates midpoint displacement offsets dynamically via local parameters
+                    float p_center_x = player->x + ((float)player->meta.width / 2.0f);
+                    float e_center_x = enemy->x + ((float)enemy->meta.width / 2.0f);
+
+                    if (p_center_x < e_center_x) {
                         player->physics.vx = -120.0f; 
                     } else {
                         player->physics.vx = 120.0f;  

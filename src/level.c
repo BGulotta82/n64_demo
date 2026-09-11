@@ -44,6 +44,7 @@ void spawn_entities(level_t *level, character *enemies){
             uint8_t tile_id = level->map_data[y * MAP_WIDTH + x];
 
             if (tile_id == PLAYER_SPAWN) {
+                // constant since an active player struct object instance hasn't passed through here yet.
                 level->spawn_x = (float)(x * TILE_SIZE);
                 level->spawn_y = (float)(y * TILE_SIZE) - (PLAYER_HEIGHT - TILE_SIZE);
                 
@@ -60,12 +61,15 @@ void spawn_entities(level_t *level, character *enemies){
                 character_type enemy_type = (character_type)tile_to_enemy_map[tile_id];
                 character *enemy = &enemies[enemy_index];
                 
-                // Initialize using your uniform engine functions
+                // FIXED LOGICAL CHRONOLOGY: Execute character_init FIRST so the custom meta sizes
+                // are extracted and assigned to the struct variables BEFORE calculating position parameters!
                 character_init(enemy, enemy_type, true);
 
                 // Calculate spawn boundaries safely
                 enemy->x = (float)(x * TILE_SIZE);
-                enemy->y = (float)(y * TILE_SIZE) - (PLAYER_HEIGHT - TILE_SIZE); 
+                // This ensures 16px Goombas and 8px Skeletons sit perfectly on top of the map tiles.
+                enemy->y = (float)(y * TILE_SIZE) - ((float)enemy->meta.height - (float)TILE_SIZE); 
+                
                 enemy->meta.state |= ACTIVE;
                 enemy->physics.state |= MOVING_LEFT;
 

@@ -236,22 +236,27 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
     dummy_input->active_actions = 0;
     if (!(enemy->meta.state & ACTIVE) || !enemy->meta.is_enemy) return;
 
-    // =========================================================================
-    // 0. VIEWPORT CHECK: Only simulate AI if within the camera bounds
-    // =========================================================================
-    // Note: Adjust 'state->camera' properties here if your struct fields differ.
-    float cam_left   = camera.x;
-    float cam_right  = camera.x + camera.width;
-    float cam_top    = camera.y;
-    float cam_bottom = camera.y + camera.height;
+    if (!(enemy->meta.state & SPAWNED)) {
+        // =========================================================================
+        // 0. VIEWPORT CHECK: Only simulate AI if within the camera bounds
+        // =========================================================================
+        // Note: Adjust 'state->camera' properties here if your struct fields differ.
+        float cam_left   = camera.x;
+        float cam_right  = camera.x + camera.width;
+        float cam_top    = camera.y;
+        float cam_bottom = camera.y + camera.height;
 
-    // 32-pixel outer padding so enemies activate seamlessly right before scrolling into view
-    float buffer = 32.0f; 
+        // 32-pixel outer padding so enemies activate seamlessly right before scrolling into view
+        float buffer = 32.0f; 
 
-    if (enemy->x < (cam_left - buffer)  || enemy->x > (cam_right + buffer) ||
-        enemy->y < (cam_top - buffer)   || enemy->y > (cam_bottom + buffer)) {
-        return; // Outside the camera view; leave dummy_input cleared so they stand idle
+        if (enemy->x < (cam_left - buffer)  || enemy->x > (cam_right + buffer) ||
+            enemy->y < (cam_top - buffer)   || enemy->y > (cam_bottom + buffer)) {
+            return; // Outside the camera view; leave dummy_input cleared so they stand idle
+        }
+
+        enemy->meta.state |= SPAWNED;
     }
+
 
     // =========================================================================
     // 1. NEAREST TARGET TRACKING: Find the closest active player

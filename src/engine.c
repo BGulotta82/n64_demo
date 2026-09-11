@@ -89,7 +89,7 @@ void engine_update(game_state_t *state, float dt) {
 
     // 3. RESOLVE COMBAT OUTCOMES LAST
     // This evaluates modifications over clean, locked positions
-    check_pve_combat(state, dt);
+    check_pve_combat(state);
 
     state->frame++;
 }
@@ -247,12 +247,11 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
     }
 }
 
-void check_pve_combat(game_state_t *state, float dt) {
+void check_pve_combat(game_state_t *state) {
     for (int p = 0; p < MAX_PLAYERS; p++) {
         character *player = &state->players[p];
         if (!player->active) continue;
 
-        // Count down invincibility timer frames if active
         if (player->invincibility_frames > 0) {
             player->invincibility_frames--;
         }
@@ -261,53 +260,38 @@ void check_pve_combat(game_state_t *state, float dt) {
             character *enemy = &state->enemies[e];
             if (!enemy->active) continue;
 
-            // 1. Basic AABB Collision Check using your structural widths/heights
-            if (player->x < enemy->x + PLAYER_WIDTH &&
-                player->x + PLAYER_WIDTH > enemy->x &&
-                player->y < enemy->y + PLAYER_HEIGHT &&
-                player->y + PLAYER_HEIGHT > enemy->y) {
+            // Round float coordinates to integer bounding boxes for precision checking
+            int p_x = (int)(player->x + 0.5f);
+            int p_y = (int)(player->y + 0.5f);
+            int e_x = (int)(enemy->x + 0.5f);
+            int e_y = (int)(enemy->y + 0.5f);
 
-                // 2. STOMP CHECK: Is the player falling downward onto the top half of the enemy?
-                // We check if player's feet are above the enemy's midsection and player is moving down.
+            if (p_x < e_x + (int)PLAYER_WIDTH &&
+                p_x + (int)PLAYER_WIDTH > e_x &&
+                p_y < e_y + (int)PLAYER_HEIGHT &&
+                p_y + (int)PLAYER_HEIGHT > e_y) {
+
                 float player_bottom = player->y + PLAYER_HEIGHT;
                 float enemy_midpoint = enemy->y + (PLAYER_HEIGHT / 2.0f);
 
+                // Stomp Check
                 if (player->physics.vy > 0.0f && player_bottom <= enemy_midpoint + 4.0f) {
-                    // --- SUCCESSFUL STOMP ---
-                    enemy->active = false; // Kill enemy instantly (deactivate)
-
-                    // Bounce the player upward into the air!
-                    // Using 75% of full jump force creates a satisfying, controlled bounce bounce
+                    enemy->active = false; 
                     player->physics.vy = player->physics.jump_force * 0.75f;
-                    
-                    // Reset air state flags so they don't break jump triggers
                     player->physics.state &= ~GROUNDED;
                     player->physics.state |= JUMPING;
                     player->coyote_frames = 0;
                 } 
-                // 3. HURT CHECK: Side or upward collision occurred
-                else {
-                    // Only apply damage if the player isn't currently recovering from a previous hit
-                    if (player->invincibility_frames == 0) {
-                        
-                        // --- PLAYER TAKES DAMAGE ---
-                        // Rebound the player backward away from the enemy's center vector
-                        if (player->x < enemy->x) {
-                            player->physics.vx = -100.0f; // Knock left
-                        } else {
-                            player->physics.vx = 100.0f;  // Knock right
-                        }
-                        
-                        // Pop them up slightly into a hurt animation state
-                        player->physics.vy = -120.0f; 
-                        player->physics.state &= ~GROUNDED;
-
-                        // Activate invincibility window (60 frames = 1 full second on 60Hz N64)
-                        player->invincibility_frames = 60;
-
-                        // Decrement player health counters or lives here if tracked:
-                        // player->health--; 
+                // Hurt Check
+                else if (player->invincibility_frames == 0) {
+                    if (player->x + (PLAYER_WIDTH / 2.0f) < enemy->x + (PLAYER_WIDTH / 2.0f)) {
+                        player->physics.vx = -120.0f; 
+                    } else {
+                        player->physics.vx = 120.0f;  
                     }
+                    player->physics.vy = -100.0f; 
+                    player->physics.state &= ~GROUNDED;
+                    player->invincibility_frames = 60; 
                 }
             }
         }

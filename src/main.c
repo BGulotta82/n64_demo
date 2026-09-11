@@ -52,7 +52,7 @@ int main(void) {
             player_active[i] = state.players[i].meta.state & ACTIVE;
         }
 
-        camera_update(&camera, player_x, player_y, player_active, MAX_PLAYERS);
+        camera_update(&camera, player_x, player_y, player_active, MAX_PLAYERS, dt);
         
         // 6. Draw your scene passing down the valid locked pointer
         renderer_draw(disp, &state); 

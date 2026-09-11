@@ -2,21 +2,23 @@
 #include "level.h"
 
 float physics_constants[NUMBER_OF_CHARACTER_TYPES][9] = {
-    // KNIGHT
-    {3.0f, 150.0f, 1250.0f, 1150.0f, 600.0f, 180.0f, 36.0f, 0.24f, 400.0f },
-    // ELF
-    {3.5f, 160.0f, 1300.0f, 1100.0f, 650.0f, 170.0f, 40.0f, 0.22f, 400.0f},
-    // WIZARD
-    {2.5f, 140.0f, 1200.0f, 1200.0f, 550.0f, 190.0f, 32.0f, 0.26f, 400.0f},
-    // DWARF
-    {2.8f, 145.0f, 1225.0f, 1175.0f, 575.0f, 185.0f, 34.0f, 0.25f, 400.0f},
+    // KNIGHT: Solid jump height boost to clear enemies easily
+    {3.0f, 150.0f, 1250.0f, 1150.0f, 600.0f, 180.0f, 52.0f, 0.24f, 400.0f },
     
-    // --- ENEMY PHYSICS ---    
-    // GOOMBA (Slower, heavier, borrows a small 32.0f jump height parameter purely to calculate positive gravity!)
-    {1.0f, 40.0f, 400.0f, 600.0f, 100.0f, 100.0f, 32.0f, 0.24f, 400.0f},
+    // ELF: Agility class. Highest jump height (56px) for effortless stomping
+    {3.5f, 160.0f, 1300.0f, 1100.0f, 650.0f, 170.0f, 56.0f, 0.22f, 400.0f},
     
-    // SKELETON (Moderate chase speed, lower acceleration so it does not accelerate instantly, lower jump height)
-    {2.0f, 75.0f, 500.0f, 600.0f, 300.0f, 150.0f, 28.0f, 0.24f, 400.0f}
+    // WIZARD: Floatier style jump. Increased height with slightly longer peak time
+    {2.5f, 140.0f, 1200.0f, 1200.0f, 550.0f, 190.0f, 48.0f, 0.28f, 400.0f},
+    
+    // DWARF: Heavy class. Respectable jump height increase while keeping a dense feel
+    {2.8f, 145.0f, 1225.0f, 1175.0f, 575.0f, 185.0f, 46.0f, 0.25f, 400.0f},
+    
+    // --- ENEMY PHYSICS (Kept slow and distinct) ---
+    // GOOMBA
+    {1.0f, 40.0f,  400.0f,  600.0f,  100.0f, 100.0f, 32.0f, 0.24f, 400.0f},
+    // SKELETON
+    {2.0f, 75.0f,  500.0f,  600.0f,  300.0f, 150.0f, 28.0f, 0.24f, 400.0f}
 };
 
 void character_init(character *character, character_type type) {
@@ -29,7 +31,8 @@ void character_init(character *character, character_type type) {
     character->y = 150.0f;
     character->coyote_frames = 0;
     character->jump_buffer_frames = 0;
-    
+    character->invincibility_frames = 0;
+
     if (type >= 4) { 
         character->is_enemy = true;
     } else {

@@ -49,7 +49,7 @@ typedef struct {
 typedef struct {
     float x, y;
     int coyote_frames;       // Time allowed to jump AFTER leaving a ledge
-    int jump_buffer_frames;  // Time to remember a jump press BEFORE touching down
+    int jump_buffer_frames, invincibility_frames;;  // Time to remember a jump press BEFORE touching down
     bool active, supported_by_player, is_enemy;               // Is this character active in the game world?
     character_type type;      // Type of character (e.g., KNIGHT, ELF, etc.)
     character_physics physics; // Physics properties for the character

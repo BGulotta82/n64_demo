@@ -9,7 +9,8 @@ typedef enum {
     STATE_WAITING_TO_START,
     STATE_PLAYING,
     STATE_LEVEL_CLEARED,
-    STATE_GAME_OVER
+    STATE_GAME_OVER,
+    STATE_STAGE_INTRO
 } match_state_t;
 
 typedef struct {

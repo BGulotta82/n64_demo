@@ -73,13 +73,26 @@ void engine_update(game_state_t *state, float dt) {
         state->match_state == STATE_LEVEL_CLEARED) {
         for (int i = 0; i < MAX_PLAYERS; i++) {
             input_update(&state->input[i], i);
-            if ((state->match_state == STATE_GAME_OVER || state->players[i].meta.state & ACTIVE) && state->input[i].active_actions & ACTION_START) {
-                int next_level_index = state->match_state == STATE_GAME_OVER ? state->level_index : state->level_index++;
+            if ((state->match_state == STATE_GAME_OVER || 
+                 state->players[i].meta.state & ACTIVE) && 
+                 state->input[i].active_actions & ACTION_START) {
+                int next_level_index = state->level_index;
+                if (state->match_state == STATE_LEVEL_CLEARED) {
+                    state->level_index++;
+                    next_level_index = state->level_index;
+                }
                 load_stage_by_index(state, next_level_index);
-                return; 
+                return;
             }
         }
 
+        return;
+    }
+
+    if (state->match_state == STATE_STAGE_INTRO) {
+        // Advance to active gameplay so the next frame runs normally
+        state->match_state = STATE_PLAYING;    
+        state->frame++;
         return;
     }
 
@@ -172,7 +185,7 @@ void check_new_player_spawn(character *self, character *players, level_t *level,
       !(self->meta.state & ACTIVE) && 
       !(self->meta.state & SPAWNED))
     {
-        character_type type = rand() % 4;;
+        character_type type = (rand() % 4) + 1; 
 
         character_init(self, type);
         self->meta.state |= ACTIVE;
@@ -390,10 +403,24 @@ void load_stage_by_index(game_state_t *state, int index) {
     }
     
     state->level_index = index;
+    
+    const char *target_file = level_playlist[index].filename;
+    float target_time       = level_playlist[index].time_limit;
+    load_level_binary(target_file, &state->level, state->enemies);
 
-    // =========================================================================
-    // --- THE SELECTIVE PLAYER PERSISTENCE OVERHAUL ---
-    // =========================================================================
+    state->level_timer = target_time; 
+    
+    // Initialize camera tracking window properties securely over the fresh geometry
+    camera_init(
+        &camera, 
+        MAP_WIDTH * TILE_SIZE, 
+        MAP_HEIGHT * TILE_SIZE, 
+        SCREEN_WIDTH, 
+        SCREEN_HEIGHT, 
+        state->level.spawn_x, 
+        state->level.spawn_y
+    );
+
     for (int i = 0; i < MAX_PLAYERS; i++) {
         // If we just cleared a level and this specific player survived (is active), 
         // DO NOT kill them. Keep their active state and health intact!
@@ -415,48 +442,26 @@ void load_stage_by_index(game_state_t *state, int index) {
         }
     }
 
-    // Load the fresh binary file asset
-    const char *target_file = level_playlist[index].filename;
-    float target_time       = level_playlist[index].time_limit;
-    load_level_binary(target_file, &state->level, state->enemies);
-
-    state->level_timer = target_time; 
-
     // =========================================================================
     // --- REPOSITION LIVING SURVIVORS SECURELY ---
     // =========================================================================
     // Now that the level's fresh state->level.spawn_x and spawn_y are loaded,
     // explicitly position your surviving heroes using your existing safety logic.
+    bool survivor = false;
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (!(state->players[i].meta.state & ACTIVE)) continue;
 
+        survivor = true;
         // Force a clean positioning refresh using your existing multi-player logic
         spawn_new_player(&state->players[i], state->players, &state->level);
     }
 
-    // Initialize camera tracking window properties securely over the fresh geometry
-    camera_init(
-        &camera, 
-        MAP_WIDTH * TILE_SIZE, 
-        MAP_HEIGHT * TILE_SIZE, 
-        SCREEN_WIDTH, 
-        SCREEN_HEIGHT, 
-        state->level.spawn_x, 
-        state->level.spawn_y
-    );
-
-    // If Player 1 was dead or it's a game over reset, wait for a Start tap
-    state->match_state = STATE_WAITING_TO_START;
-
-    // // =========================================================================
-    // // --- DETERMINE STARTING ENGINE PHASE ---
-    // // =========================================================================
-    // // If Player 1 successfully survived the transition into the next stage, 
-    // // bypass the staging screen and plunge them straight into the action!
-    // if (state->players[0].active) {
-    //     state->match_state = STATE_PLAYING;
-    // } else {
-    //     // If Player 1 was dead or it's a game over reset, wait for a Start tap
-    //     state->match_state = STATE_WAITING_TO_START;
-    // }
+    if (!survivor) 
+    {
+        state->match_state = STATE_WAITING_TO_START;
+    } 
+    else 
+    {
+        state->match_state = STATE_STAGE_INTRO;
+    }
 }

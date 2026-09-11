@@ -42,22 +42,24 @@ void character_init(character *character, character_type type) {
     character->x = 0.0f;
     character->y = 0.0f;
 
+    int physics_index = type-1;
+
     // initialize physics struct
     character->physics.vx = 0.0f;
     character->physics.vy = 0.0f;
     character->physics.ax = 0.0f;
     character->physics.ay = 0.0f;
-    character->physics.turn_multiplier = physics_constants[type][0];
-    character->physics.max_speed = physics_constants[type][1];
-    character->physics.ground_acceleration = physics_constants[type][2];
-    character->physics.ground_friction = physics_constants[type][3];
-    character->physics.air_acceleration = physics_constants[type][4];
-    character->physics.air_friction = physics_constants[type][5];
-    character->physics.jump_height = physics_constants[type][6];
-    character->physics.jump_time_to_peak = physics_constants[type][7];
-    character->physics.terminal_velocity = physics_constants[type][8];
-    character->physics.gravity_scale = (2.0f * physics_constants[type][6]) / (physics_constants[type][7] * physics_constants[type][7]);
-    character->physics.jump_force = -(2.0f * physics_constants[type][6]) / physics_constants[type][7];
+    character->physics.turn_multiplier = physics_constants[physics_index][0];
+    character->physics.max_speed = physics_constants[physics_index][1];
+    character->physics.ground_acceleration = physics_constants[physics_index][2];
+    character->physics.ground_friction = physics_constants[physics_index][3];
+    character->physics.air_acceleration = physics_constants[physics_index][4];
+    character->physics.air_friction = physics_constants[physics_index][5];
+    character->physics.jump_height = physics_constants[physics_index][6];
+    character->physics.jump_time_to_peak = physics_constants[physics_index][7];
+    character->physics.terminal_velocity = physics_constants[physics_index][8];
+    character->physics.gravity_scale = (2.0f * physics_constants[physics_index][6]) / (physics_constants[physics_index][7] * physics_constants[physics_index][7]);
+    character->physics.jump_force = -(2.0f * physics_constants[physics_index][6]) / physics_constants[physics_index][7];
     character->physics.state = PHYSICS_NONE;
 }
 

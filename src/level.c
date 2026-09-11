@@ -1,13 +1,17 @@
 #include "level.h"
 #include <libdragon.h>
 
-#define PLAYER_SPAWN (102)
+#define PLAYER_SPAWN (101)
 
 // --- THE LOGIC TRANSLATION TABLE ---
-character_type tile_to_enemy_map[256] = {
-    [100] = GOOMBA,
-    [101] = SKELETON,
-    [102] = PLAYER_SPAWN
+uint8_t tile_to_enemy_map[256] = {
+    [101] = PLAYER_SPAWN,
+    [102] = KNIGHT,
+    [103] = ELF,
+    [104] = WIZARD,
+    [105] = DWARF,
+    [106] = GOOMBA,
+    [107] = SKELETON
 };
 
 void load_level_binary(const char *dfs_path, level_t *level, character *enemies) {
@@ -30,7 +34,7 @@ void load_level_binary(const char *dfs_path, level_t *level, character *enemies)
 }
 
 void spawn_entities(level_t *level, character *enemies){
-    memset(enemies, 0, sizeof(&enemies));
+    memset(enemies, 0, sizeof(character) * MAX_ENEMIES);
 
     int enemy_index = 0;
     level->number_of_enemies = 0;
@@ -46,14 +50,14 @@ void spawn_entities(level_t *level, character *enemies){
                 // Clear out the marker so it acts as empty air
                 level->map_data[y * MAP_WIDTH + x] = 0;
             }            
-            else if (tile_id >= 100 && tile_to_enemy_map[tile_id] != 0) {
+            else if (tile_id > PLAYER_SPAWN && tile_to_enemy_map[tile_id] != 0) {
                 if (enemy_index >= MAX_ENEMIES) {
                     level->map_data[y * MAP_WIDTH + x] = 0;
                     continue;
                 }
 
                 // Resolve the enum type dynamically from our configuration table
-                character_type determined_type = tile_to_enemy_map[tile_id];
+                character_type determined_type = (character_type)tile_to_enemy_map[tile_id];
                 character *enemy = &enemies[enemy_index];
                 
                 // Initialize using your uniform engine functions

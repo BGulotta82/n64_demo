@@ -13,14 +13,12 @@
 extern float physics_constants[NUMBER_OF_CHARACTER_TYPES][9];
 
 typedef enum {
-    // PLAYER TYPES
-    KNIGHT      = 0,
-    ELF         = 1,
-    WIZARD      = 2,
-    DWARF       = 3,
-    // ENEMY TYPES
-    GOOMBA      = 4,
-    SKELETON    = 5
+    KNIGHT      = 1,
+    ELF         = 2,
+    WIZARD      = 3,
+    DWARF       = 4,
+    GOOMBA      = 5,
+    SKELETON    = 6
 } character_type;
 
 typedef enum {

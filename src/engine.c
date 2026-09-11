@@ -84,7 +84,7 @@ void engine_update(game_state_t *state, float dt) {
 
         //Run them through the exact same update system!
         //Pass the player array down so enemies can physically interact with players
-        character_update(&state->enemies[i], state->players, &simulated_input,state->level.map_data, dt);
+        character_update(&state->enemies[i], state->players, &simulated_input, state->level.map_data, dt);
     }
 
     state->frame++;
@@ -183,35 +183,60 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
     dummy_input->active_actions = 0;
     if (!enemy->active || !enemy->is_enemy) return;
 
-    // Direct behavior mapping via character_type enum
+    // =========================================================================
+    // 1. NEAREST TARGET TRACKING: Find the closest active player
+    // =========================================================================
+    character *closest_player = NULL;
+    float min_distance = 999999.0f;
+
+    for (int p = 0; p < MAX_PLAYERS; p++) {
+        const character *player = &state->players[p];
+        if (!player->active) continue;
+
+        float dist_x = fabsf(player->x - enemy->x);
+        if (dist_x < min_distance) {
+            min_distance = dist_x;
+            closest_player = (character *)player;
+        }
+    }
+
+    // If no active players exist in the entire game world, enemies stand completely idle
+    if (closest_player == NULL) return;
+
+    // =========================================================================
+    // 2. FLAG-FREE BEHAVIOR LOGIC (Modifying dummy_input ONLY)
+    // =========================================================================
+    
+    // --- GOOMBA: Relentless Zombie/Chaser AI ---
     if (enemy->type == GOOMBA) {
-        // Goomba-style pacing logic
-        if (enemy->physics.state & MOVING_LEFT) {
-            dummy_input->active_actions |= ACTION_MOVE_LEFT;
-        } else {
+        // Simply press Left or Right depending on which side of the enemy the player is on
+        if (enemy->x < closest_player->x) {
             dummy_input->active_actions |= ACTION_MOVE_RIGHT;
+        } else {
+            dummy_input->active_actions |= ACTION_MOVE_LEFT;
         }
-
-        // Turn around if walking into a tile block
-        if (fabsf(enemy->physics.vx) < 0.01f && (enemy->physics.state & GROUNDED)) {
-            if (enemy->physics.state & MOVING_LEFT) {
-                enemy->physics.state &= ~MOVING_LEFT;
-                enemy->physics.state |= MOVING_RGHT;
-            } else {
-                enemy->physics.state &= ~MOVING_RGHT;
-                enemy->physics.state |= MOVING_LEFT;
-            }
-        }
+        
+        // Note: No jump inputs or wall-turning states are tracked. If a Goomba hits a wall,
+        // it will continuously push against it until the player jumps over it or walks away!
     } 
+    
+    // --- SKELETON: Aggressive Agility Chaser AI ---
     else if (enemy->type == SKELETON) {
-        // Aggressive chasing logic targeting Player 0
-        character *target = (character*)&state->players[0];
-        if (target->active) {
-            if (enemy->x < target->x) dummy_input->active_actions |= ACTION_MOVE_RIGHT;
-            else dummy_input->active_actions |= ACTION_MOVE_LEFT;
+        // Only engage if the closest player is within its vision radius (e.g., 200 pixels)
+        if (min_distance < 200.0f) {
+            
+            // Advance horizontally toward the target
+            if (enemy->x < closest_player->x - 4.0f) {
+                dummy_input->active_actions |= ACTION_MOVE_RIGHT;
+            } else if (enemy->x > closest_player->x + 4.0f) {
+                dummy_input->active_actions |= ACTION_MOVE_LEFT;
+            }
 
-            // Jump if trying to get over obstacles or close a vertical gap
-            if (enemy->y > target->y + 16.0f && (enemy->physics.state & GROUNDED)) {
+            // Only jump if horizontally blocked by a wall OR if the player is noticeably higher up
+            bool blocked_by_wall = fabsf(enemy->physics.vx) < 0.1f;
+            bool player_is_above = (enemy->y > closest_player->y + 24.0f);
+
+            if ((enemy->physics.state & GROUNDED) && (blocked_by_wall || player_is_above)) {
                 dummy_input->active_actions |= ACTION_JUMP;
             }
         }

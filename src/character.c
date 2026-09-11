@@ -10,12 +10,13 @@ float physics_constants[NUMBER_OF_CHARACTER_TYPES][9] = {
     {2.5f, 140.0f, 1200.0f, 1200.0f, 550.0f, 190.0f, 32.0f, 0.26f, 400.0f},
     // DWARF
     {2.8f, 145.0f, 1225.0f, 1175.0f, 575.0f, 185.0f, 34.0f, 0.25f, 400.0f},
-      // --- ENEMY PHYSICS ---
-    // GOOMBA: Low max speed (60.0f), cannot jump high (0.0f jump height)
-    {1.0f, 60.0f,  800.0f,  900.0f,  200.0f,  100.0f,  0.0f,  0.30f, 400.0f},
-    // SKELETON: Fast (120.0f), high jumper (45.0f jump height)
-    {3.0f, 120.0f, 1100.0f, 1000.0f, 500.0f,  150.0f,  45.0f, 0.20f, 400.0f}
-
+    
+    // --- ENEMY PHYSICS ---    
+    // GOOMBA (Slower, heavier, borrows a small 32.0f jump height parameter purely to calculate positive gravity!)
+    {1.0f, 40.0f, 400.0f, 600.0f, 100.0f, 100.0f, 32.0f, 0.24f, 400.0f},
+    
+    // SKELETON (Moderate chase speed, lower acceleration so it does not accelerate instantly, lower jump height)
+    {2.0f, 75.0f, 500.0f, 600.0f, 300.0f, 150.0f, 28.0f, 0.24f, 400.0f}
 };
 
 void character_init(character *character, character_type type) {
@@ -229,10 +230,10 @@ void check_wall_collision(character *character, uint8_t *map_data)
     int tile_right_x = (int)(character->x + PLAYER_WIDTH) / TILE_SIZE;
 
     // 2. Calculate Y tile coordinates for 3 vertical check points (Head, Torso, Feet)
-    // Note: Feet point is tucked up by 1px so it doesn't scrap against the ground tile
-    int tile_head_y  = (int)(character->y) / TILE_SIZE;
-    int tile_torso_y = (int)(character->y + PLAYER_HEIGHT / 2.0f) / TILE_SIZE;
-    int tile_feet_y  = (int)(character->y + PLAYER_HEIGHT - 1.0f) / TILE_SIZE;
+    // Tucked in closer by 0.1f so the feet checks don't clip the floor tile beneath you
+    int tile_head_y  = (int)(character->y + 0.1f) / TILE_SIZE;
+    int tile_torso_y = (int)(character->y + (PLAYER_HEIGHT / 2.0f)) / TILE_SIZE;
+    int tile_feet_y  = (int)(character->y + PLAYER_HEIGHT - 0.1f) / TILE_SIZE;
 
     // 3. Look up all tile values from the binary matrix array
     uint8_t left_head  = get_tile_at(map_data, tile_left_x, tile_head_y);
@@ -243,18 +244,37 @@ void check_wall_collision(character *character, uint8_t *map_data)
     uint8_t right_torso = get_tile_at(map_data, tile_right_x, tile_torso_y);
     uint8_t right_feet  = get_tile_at(map_data, tile_right_x, tile_feet_y);
 
-    // 4. Resolve left wall collisions (if any of the 3 points hit a solid block)
+    // 4. Resolve left wall collisions
     if (left_head == 2 || left_torso == 2 || left_feet == 2) {
         character->x = (float)((tile_left_x + 1) * TILE_SIZE);
         character->physics.vx = 0.0f;
     }
     
-    // 5. Resolve right wall collisions (if any of the 3 points hit a solid block)
+    // 5. Resolve right wall collisions
     if (right_head == 2 || right_torso == 2 || right_feet == 2) {
-        character->x = (float)(tile_right_x * TILE_SIZE - PLAYER_WIDTH); // Wait, fix typo variable name:
-        // Note: Using tile_right_x from your original definition
         character->x = (float)(tile_right_x * TILE_SIZE - PLAYER_WIDTH);
         character->physics.vx = 0.0f;
+    }
+}
+
+void check_ceiling_collision(character *character, uint8_t *map_data)
+{
+    // Double point check for the ceiling using a tiny sub-pixel look-ahead
+    int tile_left_x  = (int)(character->x + 1.0f) / TILE_SIZE;
+    int tile_right_x = (int)(character->x + PLAYER_WIDTH - 1.0f) / TILE_SIZE;
+    
+    // Changed from -1.0f to -0.01f so standing under a low ceiling doesn't register a collision
+    int tile_top_y   = (int)(character->y - 0.01f) / TILE_SIZE; 
+
+    uint8_t tile_above_left  = get_tile_at(map_data, tile_left_x, tile_top_y);
+    uint8_t tile_above_right = get_tile_at(map_data, tile_right_x, tile_top_y);
+
+    if (tile_above_left == 2 || tile_above_right == 2) {
+        // Push down and apply a tiny sub-pixel cushion down so you don't instantly clip the roof
+        character->y = (float)((tile_top_y + 1) * TILE_SIZE) + 0.01f;
+        if (character->physics.vy < 0.0f) {
+            character->physics.vy = 0.0f;
+        }
     }
 }
 
@@ -263,9 +283,11 @@ void check_grounded(character *character, uint8_t *map_data)
     int tile_left_x  = (int)(character->x + 1.0f) / TILE_SIZE;
     int tile_right_x = (int)(character->x + PLAYER_WIDTH - 1.0f) / TILE_SIZE;
 
-    // Scan a short vertical range down to catch high-velocity falls
+    // Scan vertical range down
     int start_tile_y = (int)(character->y + PLAYER_HEIGHT - 4.0f) / TILE_SIZE; 
-    int end_tile_y   = (int)(character->y + PLAYER_HEIGHT + 1.0f) / TILE_SIZE;
+    
+    // Changed from +1.0f to +0.01f to match our precise sub-pixel cushion lift
+    int end_tile_y   = (int)(character->y + PLAYER_HEIGHT + 0.01f) / TILE_SIZE;
 
     if (start_tile_y > end_tile_y) start_tile_y = end_tile_y;
 
@@ -276,11 +298,8 @@ void check_grounded(character *character, uint8_t *map_data)
 
         if (tile_below_left == 2 || tile_below_right == 2) 
         {
-            // --- THE GLUE FIX ---
-            // Lift the player by 0.01f off the grid line so bounding boxes 
-            // never clip into adjacent tiles during wall/ceiling iterations.
+            // Lift by 0.01f off the grid floor row so you fit perfectly in 2-tile high gaps
             character->y = (float)(tile_y * TILE_SIZE) - PLAYER_HEIGHT - 0.01f;
-            
             character->physics.vy = 0.0f;
             character->physics.state |= GROUNDED;
             character->physics.state &= ~JUMPING;
@@ -292,25 +311,6 @@ void check_grounded(character *character, uint8_t *map_data)
     character->physics.state &= ~GROUNDED;
     if (character->coyote_frames > 0) {
         character->coyote_frames--;
-    }
-}
-
-void check_ceiling_collision(character *character, uint8_t *map_data)
-{
-    int tile_left_x  = (int)(character->x + 1.0f) / TILE_SIZE;
-    int tile_right_x = (int)(character->x + PLAYER_WIDTH - 1.0f) / TILE_SIZE;
-    int tile_top_y   = (int)(character->y - 1.0f) / TILE_SIZE;
-
-    uint8_t tile_above_left  = get_tile_at(map_data, tile_left_x, tile_top_y);
-    uint8_t tile_above_right = get_tile_at(map_data, tile_right_x, tile_top_y);
-
-    if (tile_above_left == 2 || tile_above_right == 2) {
-        // --- CEILING BIAS ---
-        // Push down by 0.01f so your head doesn't clip into the upper row
-        character->y = (float)((tile_top_y + 1) * TILE_SIZE) + 0.01f;
-        if (character->physics.vy < 0.0f) {
-            character->physics.vy = 0.0f;
-        }
     }
 }
 

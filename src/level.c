@@ -62,7 +62,7 @@ void spawn_entities(level_t *level, character *enemies){
                 // Calculate spawn boundaries safely
                 enemy->x = (float)(x * TILE_SIZE);
                 enemy->y = (float)(y * TILE_SIZE) - (PLAYER_HEIGHT - TILE_SIZE); 
-                enemy->active = true;
+                enemy->meta.state |= ACTIVE;
                 enemy->physics.state |= MOVING_LEFT;
 
                 // Clear the map spot back to Air (0) so it doesn't block movement

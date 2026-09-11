@@ -24,22 +24,23 @@ float physics_constants[NUMBER_OF_CHARACTER_TYPES][9] = {
 void character_init(character *character, character_type type) {
     if(!character) return;
 
-    character->active = false;
-    character->supported_by_player = false;
-    character->type = type;
-    character->x = 20.0f;
-    character->y = 150.0f;
-    character->coyote_frames = 0;
-    character->jump_buffer_frames = 0;
-    character->invincibility_frames = 0;
-
+    // init meta
+    character->meta.state = CHARACTER_NONE;
+    character->meta.type = type;
+    character->meta.coyote_frames = 0;
+    character->meta.jump_buffer_frames = 0;
+    character->meta.invincibility_frames = 0;
     if (type >= 4) { 
-        character->is_enemy = true;
-        character->health = 1;
+        character->meta.is_enemy = true;
+        character->meta.health = 1;
     } else {
-        character->health = 3;
-        character->is_enemy = false;
+        character->meta.is_enemy = false;
+        character->meta.health = 3;
     }
+
+    // init position
+    character->x = 0.0f;
+    character->y = 0.0f;
 
     // initialize physics struct
     character->physics.vx = 0.0f;
@@ -57,15 +58,15 @@ void character_init(character *character, character_type type) {
     character->physics.terminal_velocity = physics_constants[type][8];
     character->physics.gravity_scale = (2.0f * physics_constants[type][6]) / (physics_constants[type][7] * physics_constants[type][7]);
     character->physics.jump_force = -(2.0f * physics_constants[type][6]) / physics_constants[type][7];
-    character->physics.state = NONE;
+    character->physics.state = PHYSICS_NONE;
 }
 
 void character_update(character *self, character *players, input_state *input, uint8_t *map_data, float dt) {
-    if (!self || !input || !self->active) return;
+    if (!self || !input || !(self->meta.state & ACTIVE)) return;
 
     // Reset player-grounding flag before checking collisions this frame
-    bool was_supported_by_player = self->supported_by_player;
-    self->supported_by_player = false;
+    bool was_supported_by_player = self->meta.state & SUPPORTED_BY_PLAYER;
+    self->meta.state &= ~SUPPORTED_BY_PLAYER;
 
     apply_friction(self, input, dt);
     handle_move_left(self, input, dt);
@@ -90,7 +91,7 @@ void character_update(character *self, character *players, input_state *input, u
     // --- CRITICAL COYOTE FIX ---
     // If we were standing on a player last frame, but we aren't standing on a player 
     // OR a world tile this frame, strip the GROUNDED flag so we fall instantly.
-    if (!(self->physics.state & GROUNDED) && !self->supported_by_player && was_supported_by_player) {
+    if (!(self->physics.state & GROUNDED) && !(self->meta.state & SUPPORTED_BY_PLAYER) && was_supported_by_player) {
          self->physics.state &= ~GROUNDED;
     }
 }
@@ -119,7 +120,7 @@ void apply_friction(character *character, input_state *input, float dt)
 void apply_gravity(character *character, float dt)
 {
     // Apply gravity if we aren't resting on a tile AND aren't resting on a teammate
-    if (!(character->physics.state & GROUNDED) && !character->supported_by_player)
+    if (!(character->physics.state & GROUNDED) && !(character->meta.state & SUPPORTED_BY_PLAYER))
     {
         character->physics.vy += character->physics.gravity_scale * dt;
         if (character->physics.vy > character->physics.terminal_velocity)
@@ -137,7 +138,7 @@ void handle_move_left(character *character, input_state *input, float dt)
         character->physics.state &= ~MOVING_RGHT;
 
         // Choose acceleration based on ground vs air status
-        float current_accel = (character->physics.state & GROUNDED || character->supported_by_player) 
+        float current_accel = (character->physics.state & GROUNDED || character->meta.state & SUPPORTED_BY_PLAYER) 
             ? character->physics.ground_acceleration 
             : character->physics.air_acceleration;
 
@@ -168,7 +169,7 @@ void handle_move_right(character *character, input_state *input, float dt)
         character->physics.state &= ~MOVING_LEFT;
 
         // Choose acceleration based on ground vs air status
-        float current_accel = (character->physics.state & GROUNDED || character->supported_by_player) 
+        float current_accel = (character->physics.state & GROUNDED || character->meta.state & SUPPORTED_BY_PLAYER) 
             ? character->physics.ground_acceleration 
             : character->physics.air_acceleration;
 
@@ -197,7 +198,7 @@ void handle_jump(character *self, character *players, input_state *input)
     if (input->active_actions & ACTION_JUMP)
     {
         // Allowed to jump if grounded on a tile OR supported by a player
-        if ((self->physics.state & GROUNDED) || self->supported_by_player || self->coyote_frames > 0)
+        if ((self->physics.state & GROUNDED) || self->meta.state & SUPPORTED_BY_PLAYER || self->meta.coyote_frames > 0)
         {
             // Apply the jump velocity macro calculation
             self->physics.vy = self->physics.jump_force;
@@ -205,14 +206,14 @@ void handle_jump(character *self, character *players, input_state *input)
             // Clear ground states
             self->physics.state &= ~GROUNDED;
             self->physics.state |= JUMPING;
-            self->coyote_frames = 0;
+            self->meta.coyote_frames = 0;
 
             // --- MOMENTUM TRANSFER ---
             // If we are jumping off a teammate, inherit their X speed so we don't drop straight down
-            if (self->supported_by_player && players) {
+            if (self->meta.state & SUPPORTED_BY_PLAYER && players) {
                 for (int i = 0; i < MAX_PLAYERS; i++) {
                     character *other = &players[i];
-                    if (other == self || !other->active) continue;
+                    if (other == self || !(other->meta.state & ACTIVE)) continue;
 
                     // Verify if this is the player directly beneath our feet
                     if (self->x < other->x + PLAYER_WIDTH &&
@@ -308,14 +309,14 @@ void check_grounded(character *character, uint8_t *map_data)
             character->physics.vy = 0.0f;
             character->physics.state |= GROUNDED;
             character->physics.state &= ~JUMPING;
-            character->coyote_frames = COYOTE_MAX;
+            character->meta.coyote_frames = COYOTE_MAX;
             return; 
         }
     }
 
     character->physics.state &= ~GROUNDED;
-    if (character->coyote_frames > 0) {
-        character->coyote_frames--;
+    if (character->meta.coyote_frames > 0) {
+        character->meta.coyote_frames--;
     }
 }
 
@@ -324,7 +325,7 @@ void check_character_collisions(character *self, character *players, float dt) {
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         character *other = &players[i];
-        if (other == self || !other->active) continue;
+        if (other == self || !(other->meta.state & ACTIVE)) continue;
 
         if (self->x < other->x + PLAYER_WIDTH &&
             self->x + PLAYER_WIDTH > other->x &&
@@ -351,8 +352,8 @@ void check_character_collisions(character *self, character *players, float dt) {
                     
                     self->physics.vy = 0.0f;
                     self->physics.state |= GROUNDED;
-                    self->supported_by_player = true; // Mark that a player is holding us up
-                    self->coyote_frames = COYOTE_MAX;
+                    self->meta.state |= SUPPORTED_BY_PLAYER; // Mark that a player is holding us up
+                    self->meta.coyote_frames = COYOTE_MAX;
                 } else if (self->y > other->y && self->physics.vy < 0.0f) {
                     self->y = other->y + PLAYER_HEIGHT;
                     self->physics.vy = 0.0f;

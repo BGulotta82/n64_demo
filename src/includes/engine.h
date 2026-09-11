@@ -27,7 +27,7 @@ typedef struct {
 void engine_init(game_state_t *state);
 void engine_update(game_state_t *state, float dt);
 void load_stage_by_index(game_state_t *state, int index);
-bool check_new_player_spawn(game_state_t *state, int i);
+void check_new_player_spawn(character *self, character *players, level_t *level, input_state *input);
 void spawn_new_player(character *self, character *players, level_t *level);
 void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state *dummy_input);
 void check_pve_combat(game_state_t *state);

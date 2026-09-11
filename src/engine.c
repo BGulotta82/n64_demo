@@ -35,7 +35,7 @@ static bool group_would_fit_horizontally(const game_state_t *state, int player_i
     int active_count = 0;
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (!state->players[i].active) {
+        if (!(state->players[i].meta.state && ACTIVE)) {
             continue;
         }
 
@@ -68,37 +68,44 @@ static bool group_would_fit_horizontally(const game_state_t *state, int player_i
 void engine_update(game_state_t *state, float dt) {
 
     joypad_poll();
-
-    if (state->match_state != STATE_PLAYING && 
-        state->match_state != STATE_WAITING_TO_START) {
-        input_update(&state->input[0], 0);
-        
-        if (state->input[0].active_actions & ACTION_START) {
-            if (state->match_state == STATE_GAME_OVER) {
-                load_stage_by_index(state, state->level_index); 
-            } else {
-                load_stage_by_index(state, state->level_index++); 
+    
+    if (state->match_state == STATE_GAME_OVER ||
+        state->match_state == STATE_LEVEL_CLEARED) {
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            input_update(&state->input[i], i);
+            if ((state->match_state == STATE_GAME_OVER || state->players[i].meta.state & ACTIVE) && state->input[i].active_actions & ACTION_START) {
+                int next_level_index = state->match_state == STATE_GAME_OVER ? state->level_index : state->level_index++;
+                load_stage_by_index(state, next_level_index);
+                return; 
             }
-            return;
         }
-        return; 
+
+        return;
     }
 
-    int live_players = 0;
-    bool player_spawned;
+    int active_players = 0;
+    bool player_spawned = false;
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
 
-        player_spawned = check_new_player_spawn(state, i);
-        if (player_spawned && i == 0){
-            state->match_state = STATE_PLAYING;
+        input_update(&state->input[i], i);
+
+        bool player_active = (state->players[i].meta.state & ACTIVE);
+
+        if (!player_active){
+            check_new_player_spawn(&state->players[i], state->players, &state->level, &state->input[i]);
+            player_spawned = state->players[i].meta.state & SPAWNED; 
         }
 
-        if (!state->players[i].active) {
+        if (!(state->players[i].meta.state & ACTIVE)) {
             continue;
         }
 
-        live_players++;
+        if (state->match_state == STATE_WAITING_TO_START) {
+            state->match_state =  STATE_PLAYING;
+        }
+
+        active_players++;
 
         int old_x = state->players[i].x;
      
@@ -112,7 +119,7 @@ void engine_update(game_state_t *state, float dt) {
 
     // 2. Update your enemies using simulated AI inputs
     for (int i = 0; i < MAX_ENEMIES; i++) {
-        if (!state->enemies[i].active) continue;
+        if (!(state->enemies[i].meta.state & ACTIVE)) continue;
 
       // Create a local, lightweight input instance on the stack for this loop iteration
         input_state simulated_input;
@@ -133,7 +140,7 @@ void engine_update(game_state_t *state, float dt) {
     // 3. Count remaining active enemies
     state->total_enemies_left = 0;
     for (int i = 0; i < MAX_ENEMIES; i++) {
-        if (state->enemies[i].active) {
+        if (state->enemies[i].meta.state & ACTIVE) {
             state->total_enemies_left++;
         }
     }
@@ -145,11 +152,11 @@ void engine_update(game_state_t *state, float dt) {
     if (state->match_state == STATE_PLAYING && !player_spawned) {
         
         // Only trigger a victory if enemies were counted as 0 AND players actually exist on screen
-        if (state->total_enemies_left == 0 && live_players > 0) {
+        if (state->total_enemies_left == 0 && active_players > 0) {
             state->match_state = STATE_LEVEL_CLEARED;
         }
         // Trigger a defeat if time runs out OR if all drop-in players have completely died out
-        else if (state->level_timer <= 0.0f || live_players == 0) {
+        else if (state->level_timer <= 0.0f || active_players == 0) {
             state->level_timer = 0.0f; // Clamp clock visual
             state->match_state = STATE_GAME_OVER;
         }
@@ -158,36 +165,20 @@ void engine_update(game_state_t *state, float dt) {
     state->frame++;
 }
 
-bool check_new_player_spawn(game_state_t *state, int i)
+void check_new_player_spawn(character *self, character *players, level_t *level, input_state *input)
 {
-    input_update(&state->input[i], i);
 
-    if (state->input[i].active_actions & ACTION_START && !state->players[i].active)
+    if (input->active_actions & ACTION_START && 
+      !(self->meta.state & ACTIVE) && 
+      !(self->meta.state & SPAWNED))
     {
-        character_type type;
-        switch (i)
-        {
-            case 0:
-                type = KNIGHT;
-                break;
-            case 1:
-                type = ELF;
-                break;
-            case 2:
-                type = WIZARD;
-                break;
-            case 3:
-                type = DWARF;
-                break;
-        }
+        character_type type = rand() % 4;;
 
-        character_init(&state->players[i], type);
-        state->players[i].active = true;
-        spawn_new_player(&state->players[i], state->players, &state->level);
-        return true;
+        character_init(self, type);
+        self->meta.state |= ACTIVE;
+        self->meta.state |= SPAWNED;
+        spawn_new_player(self, players, level);
     }
-
-    return false;
 }
 
 void spawn_new_player(character *self, character *players, level_t *level)
@@ -202,7 +193,7 @@ void spawn_new_player(character *self, character *players, level_t *level)
     else 
     {
         // Fallback safety check: If Player 1 somehow died or is inactive, use level default
-        if (!players[0].active) {
+        if (!(players[0].meta.state & ACTIVE)) {
             self->x = level->spawn_x;
             self->y = level->spawn_y;
             return;
@@ -243,7 +234,7 @@ void spawn_new_player(character *self, character *players, level_t *level)
 
 void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state *dummy_input) {
     dummy_input->active_actions = 0;
-    if (!enemy->active || !enemy->is_enemy) return;
+    if (!(enemy->meta.state & ACTIVE) || !enemy->meta.is_enemy) return;
 
     // =========================================================================
     // 1. NEAREST TARGET TRACKING: Find the closest active player
@@ -253,7 +244,7 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
 
     for (int p = 0; p < MAX_PLAYERS; p++) {
         const character *player = &state->players[p];
-        if (!player->active) continue;
+        if (!(player->meta.state & ACTIVE)) continue;
 
         float dist_x = fabsf(player->x - enemy->x);
         if (dist_x < min_distance) {
@@ -270,7 +261,7 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
     // =========================================================================
     
     // --- GOOMBA: Relentless Zombie/Chaser AI ---
-    if (enemy->type == GOOMBA) {
+    if (enemy->meta.type == GOOMBA) {
         // Simply press Left or Right depending on which side of the enemy the player is on
         if (enemy->x < closest_player->x) {
             dummy_input->active_actions |= ACTION_MOVE_RIGHT;
@@ -283,7 +274,7 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
     } 
     
     // --- SKELETON: Aggressive Agility Chaser AI ---
-    else if (enemy->type == SKELETON) {
+    else if (enemy->meta.type == SKELETON) {
         // Only engage if the closest player is within its vision radius (e.g., 200 pixels)
         if (min_distance < 200.0f) {
             
@@ -308,15 +299,15 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
 void check_pve_combat(game_state_t *state) {
     for (int p = 0; p < MAX_PLAYERS; p++) {
         character *player = &state->players[p];
-        if (!player->active) continue;
+        if (!(player->meta.state & ACTIVE)) continue;
 
-        if (player->invincibility_frames > 0) {
-            player->invincibility_frames--;
+        if (player->meta.invincibility_frames > 0) {
+            player->meta.invincibility_frames--;
         }
 
         for (int e = 0; e < MAX_ENEMIES; e++) {
             character *enemy = &state->enemies[e];
-            if (!enemy->active) continue;
+            if (!(enemy->meta.state & ACTIVE)) continue;
 
             // Round float coordinates to integer bounding boxes for precision checking
             int p_x = (int)(player->x + 0.5f);
@@ -334,23 +325,23 @@ void check_pve_combat(game_state_t *state) {
 
                     // Stomp Check
                     if (player->physics.vy > 0.0f && player_bottom <= enemy_midpoint + 4.0f) {
-                        enemy->health--;
-                        if (enemy->health <= 0) {
-                            enemy->active = false;
+                        enemy->meta.health--;
+                        if (enemy->meta.health <= 0) {
+                            enemy->meta.state &= ~ACTIVE;
                         }                        
 
                         // Satisfying bounce upward
                         player->physics.vy = player->physics.jump_force * 0.75f;
                         player->physics.state &= ~GROUNDED;
                         player->physics.state |= JUMPING;
-                        player->coyote_frames = 0;
+                        player->meta.coyote_frames = 0;
 
                         continue; // ◄ Safe here! Skips the rest of this cell's checks and checks the next enemy asset slot
                     }               
-                    else if (player->invincibility_frames == 0) { // Hurt Check
-                    player->health--;
-                    if (player->health == 0) {
-                        player->active = false;
+                    else if (player->meta.invincibility_frames == 0) { // Hurt Check
+                    player->meta.health--;
+                    if (player->meta.health == 0) {
+                        player->meta.state &= ~ACTIVE;
                         break;
                     }
 
@@ -361,7 +352,7 @@ void check_pve_combat(game_state_t *state) {
                     }
                     player->physics.vy = -100.0f; 
                     player->physics.state &= ~GROUNDED;
-                    player->invincibility_frames = 60; 
+                    player->meta.invincibility_frames = 60; 
                 }
             }
         }
@@ -369,29 +360,59 @@ void check_pve_combat(game_state_t *state) {
 }
 
 void load_stage_by_index(game_state_t *state, int index) {
+    // Cache the previous match state before we overwrite anything
+    match_state_t previous_state = state->match_state;
+
     if (index < 0 || index >= MAX_LEVELS) {
-        index = 0; 
+        index = 0; // Safe fallback boundary clamp
     }
     
-    state->level_index  = index;
+    state->level_index = index;
 
-    // 1. Clear out active player flags for the level transition
+    // =========================================================================
+    // --- THE SELECTIVE PLAYER PERSISTENCE OVERHAUL ---
+    // =========================================================================
     for (int i = 0; i < MAX_PLAYERS; i++) {
-        state->players[i].active = false;
+        // If we just cleared a level and this specific player survived (is active), 
+        // DO NOT kill them. Keep their active state and health intact!
+        if (previous_state == STATE_LEVEL_CLEARED && state->players[i].meta.state & ACTIVE) {
+            // Stop horizontal speeds so they don't slide into the new stage uncontrollably
+            state->players[i].physics.vx = 0.0f;
+            state->players[i].physics.vy = 0.0f;
+            state->players[i].physics.state = PHYSICS_NONE;
+            state->players[i].meta.coyote_frames = 0;
+            state->players[i].meta.jump_buffer_frames = 0;
+            state->players[i].meta.invincibility_frames = 0;
+            state->players[i].meta.health = 3;
+        } 
+        else {
+            // If it was a Game Over, initial boot, or if the player was dead, 
+            // completely deactivate the slot so they must press START to drop back in.
+            state->players[i].meta.state &= ~ACTIVE;
+            state->players[i].meta.state &= ~SPAWNED;
+        }
     }
 
-    // 2. Fetch configurations straight from the playlist struct table
+    // Load the fresh binary file asset
     const char *target_file = level_playlist[index].filename;
     float target_time       = level_playlist[index].time_limit;
-
-    // 3. Load map data
     load_level_binary(target_file, &state->level, state->enemies);
 
-    // 4. THE CLEAN SLATE: Assign the time directly to your active countdown clock!
     state->level_timer = target_time; 
-    state->total_enemies_left = state->level.number_of_enemies;
 
-    // 5. Initialize camera positions over the parsed world dimensions
+    // =========================================================================
+    // --- REPOSITION LIVING SURVIVORS SECURELY ---
+    // =========================================================================
+    // Now that the level's fresh state->level.spawn_x and spawn_y are loaded,
+    // explicitly position your surviving heroes using your existing safety logic.
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (!(state->players[i].meta.state & ACTIVE)) continue;
+
+        // Force a clean positioning refresh using your existing multi-player logic
+        spawn_new_player(&state->players[i], state->players, &state->level);
+    }
+
+    // Initialize camera tracking window properties securely over the fresh geometry
     camera_init(
         &camera, 
         MAP_WIDTH * TILE_SIZE, 
@@ -402,5 +423,18 @@ void load_stage_by_index(game_state_t *state, int index) {
         state->level.spawn_y
     );
 
+    // If Player 1 was dead or it's a game over reset, wait for a Start tap
     state->match_state = STATE_WAITING_TO_START;
+
+    // // =========================================================================
+    // // --- DETERMINE STARTING ENGINE PHASE ---
+    // // =========================================================================
+    // // If Player 1 successfully survived the transition into the next stage, 
+    // // bypass the staging screen and plunge them straight into the action!
+    // if (state->players[0].active) {
+    //     state->match_state = STATE_PLAYING;
+    // } else {
+    //     // If Player 1 was dead or it's a game over reset, wait for a Start tap
+    //     state->match_state = STATE_WAITING_TO_START;
+    // }
 }

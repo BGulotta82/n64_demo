@@ -49,7 +49,7 @@ int main(void) {
         for (int i = 0; i < MAX_PLAYERS; i++) {
             player_x[i] = (int)(state.players[i].x + 0.5f);
             player_y[i] = (int)(state.players[i].y + 0.5f);
-            player_active[i] = state.players[i].active;
+            player_active[i] = state.players[i].meta.state & ACTIVE;
         }
 
         camera_update(&camera, player_x, player_y, player_active, MAX_PLAYERS);

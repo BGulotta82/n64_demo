@@ -14,22 +14,38 @@ extern float physics_constants[NUMBER_OF_CHARACTER_TYPES][9];
 
 typedef enum {
     // PLAYER TYPES
-    KNIGHT     = 0,
-    ELF        = 1,
-    WIZARD     = 2,
-    DWARF      = 3,
+    KNIGHT      = 0,
+    ELF         = 1,
+    WIZARD      = 2,
+    DWARF       = 3,
     // ENEMY TYPES
-    GOOMBA     = 4,
-    SKELETON   = 5
+    GOOMBA      = 4,
+    SKELETON    = 5
 } character_type;
 
 typedef enum {
-    NONE       =  0,
-    GROUNDED   =  1 << 0, 
+    PHYSICS_NONE        =  0,
+    GROUNDED    =  1 << 0, 
     MOVING_LEFT = 1 << 1, 
     MOVING_RGHT = 1 << 2, 
     JUMPING     = 1 << 3  
 } physics_state;
+
+typedef enum {
+    CHARACTER_NONE        =  0,
+    ACTIVE      =  1 << 0, 
+    SPAWNED     = 1 << 1,
+    SUPPORTED_BY_PLAYER = 1 << 2  
+} character_state;
+
+typedef struct {
+    int coyote_frames;       // Time allowed to jump AFTER leaving a ledge
+    int jump_buffer_frames, invincibility_frames;;  // Time to remember a jump press BEFORE touching down
+    int health;
+    bool is_enemy;
+    character_state state;                // Is this character active in the game world?
+    character_type type;      // Type of character (e.g., KNIGHT, ELF, etc.)
+} character_meta;
 
 typedef struct {
     // Current State (Changes every frame)
@@ -48,11 +64,7 @@ typedef struct {
 
 typedef struct {
     float x, y;
-    int coyote_frames;       // Time allowed to jump AFTER leaving a ledge
-    int jump_buffer_frames, invincibility_frames;;  // Time to remember a jump press BEFORE touching down
-    int health;
-    bool active, supported_by_player, is_enemy;               // Is this character active in the game world?
-    character_type type;      // Type of character (e.g., KNIGHT, ELF, etc.)
+    character_meta meta;
     character_physics physics; // Physics properties for the character
 } character;
 

@@ -9,7 +9,8 @@ typedef enum {
     ACTION_JUMP       = 1 << 2,
     ACTION_JUMP_HELD  = 1 << 3,
     ACTION_JUMP_RELEASED = 1 << 4,
-    ACTION_ATTACK     = 1 << 5 
+    ACTION_ATTACK     = 1 << 5,
+    ACTION_START      = 1 << 6
 } game_action;
 
 typedef struct {
@@ -19,5 +20,5 @@ typedef struct {
 } input_state;
 
 void input_init(input_state *state);
-bool input_update(input_state *state, joypad_port_t port);
+void input_update(input_state *state, joypad_port_t port);
 #endif // INPUT_H

@@ -4,6 +4,19 @@
 
 extern camera_t camera;
 
+// Group the stage filename and time limit together into a single structure
+typedef struct {
+    const char *filename;
+    float time_limit;
+} stage_config_t;
+
+// Define your static level playlist mapping parameters
+static const stage_config_t level_playlist[MAX_LEVELS] = {
+    { "/level1.bin", 99.0f },
+    { "/level1.bin", 30.0f },
+    { "/level1.bin", 20.0f }
+};
+
 void engine_init(game_state_t *state) {
     memset(state, 0, sizeof(*state));
 
@@ -58,13 +71,28 @@ void engine_update(game_state_t *state, float dt) {
 
     if (state->match_state != STATE_PLAYING && 
         state->match_state != STATE_WAITING_TO_START) {
+        input_update(&state->input[0], 0);
+        
+        if (state->input[0].active_actions & ACTION_START) {
+            if (state->match_state == STATE_GAME_OVER) {
+                load_stage_by_index(state, state->level_index); 
+            } else {
+                load_stage_by_index(state, state->level_index++); 
+            }
+            return;
+        }
         return; 
     }
 
     int live_players = 0;
+    bool player_spawned;
+
     for (int i = 0; i < MAX_PLAYERS; i++) {
 
-        check_new_player_spawn(state, i);
+        player_spawned = check_new_player_spawn(state, i);
+        if (player_spawned && i == 0){
+            state->match_state = STATE_PLAYING;
+        }
 
         if (!state->players[i].active) {
             continue;
@@ -114,107 +142,104 @@ void engine_update(game_state_t *state, float dt) {
     // This evaluates modifications over clean, locked positions
     check_pve_combat(state);
 
-    if (state->total_enemies_left == 0) {
-        state->match_state = STATE_LEVEL_CLEARED;
-    }
-    // CONDITION B: Timer ran out OR all local players died -> DEFEAT!
-    else if (state->level_timer <= 0.0f || (state->match_state == STATE_PLAYING && live_players == 0)) {
-        state->level_timer = 0.0f; // Clamp clock visual
-        state->match_state = STATE_GAME_OVER;
+    if (state->match_state == STATE_PLAYING && !player_spawned) {
+        
+        // Only trigger a victory if enemies were counted as 0 AND players actually exist on screen
+        if (state->total_enemies_left == 0 && live_players > 0) {
+            state->match_state = STATE_LEVEL_CLEARED;
+        }
+        // Trigger a defeat if time runs out OR if all drop-in players have completely died out
+        else if (state->level_timer <= 0.0f || live_players == 0) {
+            state->level_timer = 0.0f; // Clamp clock visual
+            state->match_state = STATE_GAME_OVER;
+        }
     }
 
     state->frame++;
 }
 
-void check_new_player_spawn(game_state_t *state, int i)
+bool check_new_player_spawn(game_state_t *state, int i)
 {
-    bool active = input_update(&state->input[i], i);
+    input_update(&state->input[i], i);
 
-    if (active)
+    if (state->input[i].active_actions & ACTION_START && !state->players[i].active)
     {
         character_type type;
         switch (i)
         {
-        case 0:
-            state->match_state = STATE_PLAYING;
-            type = KNIGHT;            
-            break;
-        case 1:
-            type = ELF;
-            break;
-        case 2:
-            type = WIZARD;
-            break;
-        case 3:
-            type = DWARF;
-            break;
+            case 0:
+                type = KNIGHT;
+                break;
+            case 1:
+                type = ELF;
+                break;
+            case 2:
+                type = WIZARD;
+                break;
+            case 3:
+                type = DWARF;
+                break;
         }
 
-        spawn_new_player(state, type, i);
-    }
-}
-
-void spawn_new_player(game_state_t *state, character_type type, int i)
-{
-    if (i < 0 || i >= MAX_PLAYERS) return;
-
-    if (!state->players[i].active)
-    {
         character_init(&state->players[i], type);
         state->players[i].active = true;
+        spawn_new_player(&state->players[i], state->players, &state->level);
+        return true;
+    }
 
-        // --- Player 1 (The Host) Spawns at Level Point ---
-        if (i == 0)
-        {
-            state->players[i].x = state->level.spawn_x;
-            state->players[i].y = state->level.spawn_y;
-        } 
-        // --- Players 2, 3, and 4 Drop In Dynamically ---
-        else 
-        {
-            // Fallback safety check: If Player 1 somehow died or is inactive, use level default
-            if (!state->players[0].active) {
-                state->players[i].x = state->level.spawn_x;
-                state->players[i].y = state->level.spawn_y;
-                return;
-            }
+    return false;
+}
 
-            bool p1_moving_right = state->players[0].physics.state & MOVING_RGHT;
-            float desired_offset = p1_moving_right ? -20.0f : 20.0f; // Tucked slightly closer than 30px
-            
-            float target_x = state->players[0].x + desired_offset;
-            float target_y = state->players[0].y;
+void spawn_new_player(character *self, character *players, level_t *level)
+{
+    // --- Player 1 (The Host) Spawns at Level Point ---
+    if (self == &players[0])
+    {
+        self->x = level->spawn_x;
+        self->y = level->spawn_y;
+    } 
+    // --- Players 2, 3, and 4 Drop In Dynamically ---
+    else 
+    {
+        // Fallback safety check: If Player 1 somehow died or is inactive, use level default
+        if (!players[0].active) {
+            self->x = level->spawn_x;
+            self->y = level->spawn_y;
+            return;
+        }
 
-            // --- LEVEL BOUNDARY SAFETY WALLS ---
-            // Keep late spawns within the map dimensions so they don't spawn off-screen
-            if (target_x < 0.0f) target_x = 0.0f;
-            if (target_x + PLAYER_WIDTH > (float)(MAP_WIDTH * TILE_SIZE)) {
-                target_x = (float)(MAP_WIDTH * TILE_SIZE) - PLAYER_WIDTH;
-            }
+        bool p1_moving_right = players[0].physics.state & MOVING_RGHT;
+        float desired_offset = p1_moving_right ? -20.0f : 20.0f; // Tucked slightly closer than 30px
+        
+        float target_x = players[0].x + desired_offset;
+        float target_y = players[0].y;
 
-            // --- TILE OVERLAP PREVENTER ---
-            // Sample the tiles where the player's torso would spawn
-            int test_tile_x = (int)(target_x + (PLAYER_WIDTH / 2.0f)) / TILE_SIZE;
-            int test_tile_y = (int)(target_y + (PLAYER_HEIGHT / 2.0f)) / TILE_SIZE;
+        // --- LEVEL BOUNDARY SAFETY WALLS ---
+        // Keep late spawns within the map dimensions so they don't spawn off-screen
+        if (target_x < 0.0f) target_x = 0.0f;
+        if (target_x + PLAYER_WIDTH > (float)(MAP_WIDTH * TILE_SIZE)) {
+            target_x = (float)(MAP_WIDTH * TILE_SIZE) - PLAYER_WIDTH;
+        }
 
-            uint8_t target_tile_block = get_tile_at(state->level.map_data, test_tile_x, test_tile_y);
+        // --- TILE OVERLAP PREVENTER ---
+        // Sample the tiles where the player's torso would spawn
+        int test_tile_x = (int)(target_x + (PLAYER_WIDTH / 2.0f)) / TILE_SIZE;
+        int test_tile_y = (int)(target_y + (PLAYER_HEIGHT / 2.0f)) / TILE_SIZE;
 
-            if (target_tile_block == 2) {
-                // If the desired offset is a solid block, bypass the offset completely.
-                // This spawns Player 2 EXACTLY inside Player 1's space, safely leveraging 
-                // your player-to-player collision code to gently push them apart!
-                state->players[i].x = state->players[0].x;
-                state->players[i].y = state->players[0].y;
-            } else {
-                state->players[i].x = target_x;
-                state->players[i].y = target_y;
-            }
+        uint8_t target_tile_block = get_tile_at(level->map_data, test_tile_x, test_tile_y);
 
-            // Give the new player temporary invincibility frames here if your structural model has them!
-            // state->players[i].invincibility_frames = 60;
+        if (target_tile_block == 2) {
+            // If the desired offset is a solid block, bypass the offset completely.
+            // This spawns Player 2 EXACTLY inside Player 1's space, safely leveraging 
+            // your player-to-player collision code to gently push them apart!
+            self->x = players[0].x;
+            self->y = players[0].y;
+        } else {
+            self->x = target_x;
+            self->y = target_y;
         }
     }
-}
+}        
 
 void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state *dummy_input) {
     dummy_input->active_actions = 0;
@@ -343,3 +368,39 @@ void check_pve_combat(game_state_t *state) {
     }
 }
 
+void load_stage_by_index(game_state_t *state, int index) {
+    if (index < 0 || index >= MAX_LEVELS) {
+        index = 0; 
+    }
+    
+    state->level_index  = index;
+
+    // 1. Clear out active player flags for the level transition
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        state->players[i].active = false;
+    }
+
+    // 2. Fetch configurations straight from the playlist struct table
+    const char *target_file = level_playlist[index].filename;
+    float target_time       = level_playlist[index].time_limit;
+
+    // 3. Load map data
+    load_level_binary(target_file, &state->level, state->enemies);
+
+    // 4. THE CLEAN SLATE: Assign the time directly to your active countdown clock!
+    state->level_timer = target_time; 
+    state->total_enemies_left = state->level.number_of_enemies;
+
+    // 5. Initialize camera positions over the parsed world dimensions
+    camera_init(
+        &camera, 
+        MAP_WIDTH * TILE_SIZE, 
+        MAP_HEIGHT * TILE_SIZE, 
+        SCREEN_WIDTH, 
+        SCREEN_HEIGHT, 
+        state->level.spawn_x, 
+        state->level.spawn_y
+    );
+
+    state->match_state = STATE_WAITING_TO_START;
+}

@@ -20,9 +20,6 @@ void load_level_binary(const char *dfs_path, level_t *level, character *enemies)
     int bytes_read = dfs_read(level->map_data, 1, TOTAL_TILES, (uint32_t)fd);
     dfs_close(fd);
 
-    // --- CONFIGURE STAGE TIME ---
-    level->time_limit = 99.0f; // Give this specific map file 99 seconds
-    
     printf("SUCCESS: Loaded %d bytes from level file.\n", (int)bytes_read);
 
     if (bytes_read != TOTAL_TILES) {

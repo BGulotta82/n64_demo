@@ -8,8 +8,8 @@ void input_init(input_state *state) {
     state->move_y = 0.0f;
 }
 
-bool input_update(input_state *state, joypad_port_t port) {
-    if (!state) return false;
+void input_update(input_state *state, joypad_port_t port) {
+    if (!state) return;
     
     joypad_inputs_t raw = joypad_get_inputs(port);
     joypad_buttons_t pressed = joypad_get_buttons(port);
@@ -28,5 +28,7 @@ bool input_update(input_state *state, joypad_port_t port) {
     state->move_x = (float)raw.stick_x / 85.0f;
     state->move_y = (float)raw.stick_y / 85.0f;
 
-    return pressed.start; // Return true if the start button was pressed
+    if (pressed.start) {
+        state->active_actions |= ACTION_START;
+    }
 }

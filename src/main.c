@@ -14,12 +14,10 @@ int main(void) {
     dfs_init(DFS_DEFAULT_LOCATION);
     renderer_init();
     timer_init();
-    engine_init(&state);
-    load_level_binary("/level_test.bin", &state.level, state.enemies);
-    state.level_timer = state.level.time_limit;
-    state.total_enemies_left = state.level.number_of_enemies;
-    
+    engine_init(&state);    
     camera_init(&camera, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT, state.level.spawn_x, state.level.spawn_y);
+
+    load_stage_by_index(&state, 0); 
 
     unsigned long long last_ticks = timer_ticks();
 

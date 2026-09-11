@@ -135,7 +135,7 @@ void draw_level(level_t *level) {
 }
 
 void draw_hud(const game_state_t *state) {
-    // 1. Render the semi-transparent black banner background
+    // 1. Render the top 20px dark banner background
     rdpq_set_mode_fill(RGBA32(0x00, 0x00, 0x00, 180)); 
     rdpq_fill_rectangle(0, 0, 320, 20);
 
@@ -149,13 +149,10 @@ void draw_hud(const game_state_t *state) {
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (!state->players[i].active) continue;
 
-        // Ensure you declare player_string as a fixed buffer array rather than a bare char!
         char player_string[16]; 
         sprintf(player_string, "P%d:%d", i + 1, state->players[i].health);
 
-        // Pass 'NULL' to use default parms configuration
-        rdpq_text_printf(NULL, 1, horizontal_offset, 14, player_string); //
-        
+        rdpq_text_printf(NULL, 1, horizontal_offset, 14, player_string);
         horizontal_offset += 45; 
     }
 
@@ -167,26 +164,32 @@ void draw_hud(const game_state_t *state) {
     if (time_int < 0) time_int = 0;
 
     sprintf(center_string, "ENEMIES:%02d | %03d", state->total_enemies_left, time_int);
+    rdpq_text_printf(NULL, 1, 140, 14, center_string);
 
-    // X=140 coordinates align text beautifully in the center of a 320px frame
-    rdpq_text_printf(NULL, 1, 140, 14, center_string); //
-
+    // =========================================================================
+    // C. MASTER STATE TEXT OVERLAYS & CONTROLLER PROMPTS (THE ADDITION)
+    // =========================================================================
     if (state->match_state == STATE_GAME_OVER) {
         // Render a large dark box over the center of the viewport screen
         rdpq_set_mode_fill(RGBA32(0x00, 0x00, 0x00, 200));
-        rdpq_fill_rectangle(40, 100, 280, 140);
+        rdpq_fill_rectangle(30, 90, 290, 150); // Elongated slightly to fit two lines
         
         rdpq_set_mode_standard();
-        // Libdragon rdpq_text_printf allows manual styling modifiers via format strings!
-        // Using structural spaces offsets the characters nicely on the 320px viewport
-        rdpq_text_printf(NULL, 1, 120, 124, "GAME OVER");
+        // Line 1: Primary Status
+        rdpq_text_printf(NULL, 1, 120, 114, "GAME OVER");
+        // Line 2: Interactivity Menu prompt (Centered on 320px screen width)
+        rdpq_text_printf(NULL, 1, 68, 134, "PRESS START TO RETRY STAGE");
     } 
     else if (state->match_state == STATE_LEVEL_CLEARED) {
         // Render a green tinted victory box overlay
         rdpq_set_mode_fill(RGBA32(0x10, 0x40, 0x10, 200));
-        rdpq_fill_rectangle(40, 100, 280, 140);
+        rdpq_fill_rectangle(30, 90, 290, 150);
         
         rdpq_set_mode_standard();
-        rdpq_text_printf(NULL, 1, 108, 124, "STAGE CLEARED!");
+        // Line 1: Primary Status
+        rdpq_text_printf(NULL, 1, 108, 114, "STAGE CLEARED!");
+        // Line 2: Interactivity Menu prompt
+        rdpq_text_printf(NULL, 1, 64, 134, "PRESS START FOR NEXT STAGE");
     }
 }
+

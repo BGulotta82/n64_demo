@@ -14,7 +14,6 @@ typedef struct {
     
     // You can easily add more level metadata here later:
     // int music_id;
-    int time_limit;
     int number_of_enemies;
 } level_t;
 

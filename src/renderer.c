@@ -42,8 +42,9 @@ void renderer_draw(surface_t *disp, const game_state_t *state) {
 void draw_characters(const game_state_t *state) {
     // 1. Render all active human players
     for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (state->players[i].meta.invincibility_frames > 0 && (state->players[i].meta.invincibility_frames % 4 < 2)) {
-            return; // Skip drawing this frame to make the character blink/flicker!
+        if (state->players[i].meta.invincibility_frames > 0 && 
+           (state->players[i].meta.invincibility_frames % 4 < 2)) {
+           continue; // ◄ FIX: Skip ONLY this individual player's drawing routine for this frame!
         }
         draw_single_character(&state->players[i]);
     }

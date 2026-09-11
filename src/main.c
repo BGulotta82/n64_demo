@@ -16,6 +16,9 @@ int main(void) {
     timer_init();
     engine_init(&state);
     load_level_binary("/level_test.bin", &state.level, state.enemies);
+    state.level_timer = state.level.time_limit;
+    state.total_enemies_left = state.level.number_of_enemies;
+    
     camera_init(&camera, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT, state.level.spawn_x, state.level.spawn_y);
 
     unsigned long long last_ticks = timer_ticks();

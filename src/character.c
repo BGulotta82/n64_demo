@@ -35,7 +35,9 @@ void character_init(character *character, character_type type) {
 
     if (type >= 4) { 
         character->is_enemy = true;
+        character->health = 1;
     } else {
+        character->health = 3;
         character->is_enemy = false;
     }
 

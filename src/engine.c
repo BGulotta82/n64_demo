@@ -7,6 +7,8 @@ extern camera_t camera;
 void engine_init(game_state_t *state) {
     memset(state, 0, sizeof(*state));
 
+    state->match_state = STATE_WAITING_TO_START;
+
     joypad_init();
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -54,6 +56,12 @@ void engine_update(game_state_t *state, float dt) {
 
     joypad_poll();
 
+    if (state->match_state != STATE_PLAYING && 
+        state->match_state != STATE_WAITING_TO_START) {
+        return; 
+    }
+
+    int live_players = 0;
     for (int i = 0; i < MAX_PLAYERS; i++) {
 
         check_new_player_spawn(state, i);
@@ -61,6 +69,8 @@ void engine_update(game_state_t *state, float dt) {
         if (!state->players[i].active) {
             continue;
         }
+
+        live_players++;
 
         int old_x = state->players[i].x;
      
@@ -87,9 +97,31 @@ void engine_update(game_state_t *state, float dt) {
         character_update(&state->enemies[i], NULL, &simulated_input, state->level.map_data, dt);
     }
 
+     // 2. Count down your level match timer
+    if (state->level_timer > 0.0f && state->match_state == STATE_PLAYING) {
+        state->level_timer -= dt;
+    }
+
+    // 3. Count remaining active enemies
+    state->total_enemies_left = 0;
+    for (int i = 0; i < MAX_ENEMIES; i++) {
+        if (state->enemies[i].active) {
+            state->total_enemies_left++;
+        }
+    }
+
     // 3. RESOLVE COMBAT OUTCOMES LAST
     // This evaluates modifications over clean, locked positions
     check_pve_combat(state);
+
+    if (state->total_enemies_left == 0) {
+        state->match_state = STATE_LEVEL_CLEARED;
+    }
+    // CONDITION B: Timer ran out OR all local players died -> DEFEAT!
+    else if (state->level_timer <= 0.0f || (state->match_state == STATE_PLAYING && live_players == 0)) {
+        state->level_timer = 0.0f; // Clamp clock visual
+        state->match_state = STATE_GAME_OVER;
+    }
 
     state->frame++;
 }
@@ -104,6 +136,7 @@ void check_new_player_spawn(game_state_t *state, int i)
         switch (i)
         {
         case 0:
+            state->match_state = STATE_PLAYING;
             type = KNIGHT;            
             break;
         case 1:
@@ -274,16 +307,28 @@ void check_pve_combat(game_state_t *state) {
                 float player_bottom = player->y + PLAYER_HEIGHT;
                 float enemy_midpoint = enemy->y + (PLAYER_HEIGHT / 2.0f);
 
-                // Stomp Check
-                if (player->physics.vy > 0.0f && player_bottom <= enemy_midpoint + 4.0f) {
-                    enemy->active = false; 
-                    player->physics.vy = player->physics.jump_force * 0.75f;
-                    player->physics.state &= ~GROUNDED;
-                    player->physics.state |= JUMPING;
-                    player->coyote_frames = 0;
-                } 
-                // Hurt Check
-                else if (player->invincibility_frames == 0) {
+                    // Stomp Check
+                    if (player->physics.vy > 0.0f && player_bottom <= enemy_midpoint + 4.0f) {
+                        enemy->health--;
+                        if (enemy->health <= 0) {
+                            enemy->active = false;
+                        }                        
+
+                        // Satisfying bounce upward
+                        player->physics.vy = player->physics.jump_force * 0.75f;
+                        player->physics.state &= ~GROUNDED;
+                        player->physics.state |= JUMPING;
+                        player->coyote_frames = 0;
+
+                        continue; // ◄ Safe here! Skips the rest of this cell's checks and checks the next enemy asset slot
+                    }               
+                    else if (player->invincibility_frames == 0) { // Hurt Check
+                    player->health--;
+                    if (player->health == 0) {
+                        player->active = false;
+                        break;
+                    }
+
                     if (player->x + (PLAYER_WIDTH / 2.0f) < enemy->x + (PLAYER_WIDTH / 2.0f)) {
                         player->physics.vx = -120.0f; 
                     } else {

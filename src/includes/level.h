@@ -14,7 +14,8 @@ typedef struct {
     
     // You can easily add more level metadata here later:
     // int music_id;
-    // int time_limit;
+    int time_limit;
+    int number_of_enemies;
 } level_t;
 
 uint8_t get_tile_at(uint8_t *map_data, int x, int y);

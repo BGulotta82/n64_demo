@@ -20,6 +20,9 @@ void load_level_binary(const char *dfs_path, level_t *level, character *enemies)
     int bytes_read = dfs_read(level->map_data, 1, TOTAL_TILES, (uint32_t)fd);
     dfs_close(fd);
 
+    // --- CONFIGURE STAGE TIME ---
+    level->time_limit = 99.0f; // Give this specific map file 99 seconds
+    
     printf("SUCCESS: Loaded %d bytes from level file.\n", (int)bytes_read);
 
     if (bytes_read != TOTAL_TILES) {
@@ -33,6 +36,7 @@ void spawn_entities(level_t *level, character *enemies){
     memset(enemies, 0, sizeof(&enemies));
 
     int enemy_index = 0;
+    level->number_of_enemies = 0;
 
     for (int y = 0; y < MAP_HEIGHT; y++) {
         for (int x = 0; x < MAP_WIDTH; x++) {
@@ -66,6 +70,7 @@ void spawn_entities(level_t *level, character *enemies){
 
                 // Clear the map spot back to Air (0) so it doesn't block movement
                 level->map_data[y * MAP_WIDTH + x] = 0;
+                level->number_of_enemies++;
 
                 enemy_index++;
             }

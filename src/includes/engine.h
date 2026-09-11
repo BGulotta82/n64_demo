@@ -5,12 +5,22 @@
 #include "input.h"
 #include "character.h"
 
+typedef enum {
+    STATE_WAITING_TO_START,
+    STATE_PLAYING,
+    STATE_LEVEL_CLEARED,
+    STATE_GAME_OVER
+} match_state_t;
+
 typedef struct {
     int frame;
     input_state input[MAX_PLAYERS];
     character players[MAX_PLAYERS];
     character enemies[MAX_ENEMIES];
     level_t level; 
+    float level_timer;
+    int total_enemies_left;
+    match_state_t match_state; 
 } game_state_t;
 
 void engine_init(game_state_t *state);

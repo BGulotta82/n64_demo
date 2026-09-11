@@ -3,6 +3,7 @@
 #include "level.h"
 #include "camera.h"
 
+// Global font handle
 extern camera_t camera;
 sprite_t* level_tilesheet;
 sprite_t* character_sprites[NUMBER_OF_CHARACTER_TYPES];
@@ -10,6 +11,10 @@ sprite_t* character_sprites[NUMBER_OF_CHARACTER_TYPES];
 void renderer_init(void) {
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
     rdpq_init();
+
+    rdpq_font_t *builtin_font = rdpq_font_load_builtin(FONT_BUILTIN_DEBUG_MONO);
+    rdpq_text_register_font(1, builtin_font);
+
     level_tilesheet  = sprite_load("rom:/tiles.sprite");
     character_sprites[KNIGHT]   = sprite_load("rom:/knight.sprite");
     character_sprites[ELF]      = sprite_load("rom:/elf.sprite");
@@ -27,6 +32,8 @@ void renderer_draw(surface_t *disp, const game_state_t *state) {
 
     draw_level(&state->level);
     draw_characters(state);
+
+    draw_hud(state);
 
     // Detach and flip cleanly at the next VSync interval
     rdpq_detach_show();
@@ -124,5 +131,62 @@ void draw_level(level_t *level) {
             // 4. Blit directly from the main level_tilesheet sprite using the parameters
             rdpq_sprite_blit(level_tilesheet, screen_x, screen_y, &parms);
         }
+    }
+}
+
+void draw_hud(const game_state_t *state) {
+    // 1. Render the semi-transparent black banner background
+    rdpq_set_mode_fill(RGBA32(0x00, 0x00, 0x00, 180)); 
+    rdpq_fill_rectangle(0, 0, 320, 20);
+
+    // 2. Prepare standard mode for text blitting
+    rdpq_set_mode_standard();
+
+    // =========================================================================
+    // A. LEFT SIDE: Individual Player Hits Left
+    // =========================================================================
+    int horizontal_offset = 8;
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (!state->players[i].active) continue;
+
+        // Ensure you declare player_string as a fixed buffer array rather than a bare char!
+        char player_string[16]; 
+        sprintf(player_string, "P%d:%d", i + 1, state->players[i].health);
+
+        // Pass 'NULL' to use default parms configuration
+        rdpq_text_printf(NULL, 1, horizontal_offset, 14, player_string); //
+        
+        horizontal_offset += 45; 
+    }
+
+    // =========================================================================
+    // B. CENTER SCREEN: Enemy Counter & Countdown Timer
+    // =========================================================================
+    char center_string[32];
+    int time_int = (int)state->level_timer;
+    if (time_int < 0) time_int = 0;
+
+    sprintf(center_string, "ENEMIES:%02d | %03d", state->total_enemies_left, time_int);
+
+    // X=140 coordinates align text beautifully in the center of a 320px frame
+    rdpq_text_printf(NULL, 1, 140, 14, center_string); //
+
+    if (state->match_state == STATE_GAME_OVER) {
+        // Render a large dark box over the center of the viewport screen
+        rdpq_set_mode_fill(RGBA32(0x00, 0x00, 0x00, 200));
+        rdpq_fill_rectangle(40, 100, 280, 140);
+        
+        rdpq_set_mode_standard();
+        // Libdragon rdpq_text_printf allows manual styling modifiers via format strings!
+        // Using structural spaces offsets the characters nicely on the 320px viewport
+        rdpq_text_printf(NULL, 1, 120, 124, "GAME OVER");
+    } 
+    else if (state->match_state == STATE_LEVEL_CLEARED) {
+        // Render a green tinted victory box overlay
+        rdpq_set_mode_fill(RGBA32(0x10, 0x40, 0x10, 200));
+        rdpq_fill_rectangle(40, 100, 280, 140);
+        
+        rdpq_set_mode_standard();
+        rdpq_text_printf(NULL, 1, 108, 124, "STAGE CLEARED!");
     }
 }

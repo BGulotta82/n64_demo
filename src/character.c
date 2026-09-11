@@ -14,7 +14,7 @@ float physics_constants[NUMBER_OF_CHARACTER_TYPES][9] = {
     // GOOMBA
     {1.0f, 40.0f,  400.0f,  600.0f,  100.0f, 100.0f, 32.0f, 0.24f, 400.0f},
     // SKELETON
-    {2.0f, 75.0f,  500.0f,  600.0f,  300.0f, 150.0f, 16.0f, 0.24f, 400.0f}
+    {2.0f, 50.0f,  500.0f,  600.0f,  300.0f, 150.0f, 16.0f, 0.24f, 400.0f}
 };
 
 void character_init(character *character, character_type type, bool is_enemy) {
@@ -26,6 +26,9 @@ void character_init(character *character, character_type type, bool is_enemy) {
     character->meta.coyote_frames = 0;
     character->meta.jump_buffer_frames = 0;
     character->meta.invincibility_frames = 0;
+    character->meta.ai_home_row = 0;
+    character->meta.ai_jump_cooldown = 0;
+    
     character->meta.is_enemy = is_enemy;
 
     switch(type) {
@@ -107,6 +110,8 @@ void character_update(character *self, character *players, input_state *input, u
     if (!(self->physics.state & GROUNDED) && !(self->meta.state & SUPPORTED_BY_PLAYER) && was_supported_by_player) {
          self->physics.state &= ~GROUNDED;
     }
+
+     self->meta.frame++; 
 }
 
 float approach(float current, float target, float step) {

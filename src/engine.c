@@ -1,6 +1,7 @@
 #include "engine.h"
 #include "camera.h"
 #include <string.h>
+#include <stdlib.h>
 
 extern camera_t camera;
 
@@ -35,7 +36,7 @@ static bool group_would_fit_horizontally(const game_state_t *state, int player_i
     int active_count = 0;
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (!(state->players[i].meta.state && ACTIVE)) {
+        if (!(state->players[i].meta.state & ACTIVE)) {
             continue;
         }
 
@@ -138,7 +139,7 @@ void engine_update(game_state_t *state, float dt) {
         input_state simulated_input;
         simulated_input.active_actions = 0; // Clear it to zero clean slate
 
-        simulate_enemy_ai(&state->enemies[i], state, &simulated_input);
+        simulate_enemy_ai(&state->enemies[i], state, &simulated_input, dt);
 
         //Run them through the exact same update system!
         //Pass the player array down so enemies can physically interact with players
@@ -245,31 +246,56 @@ void spawn_new_player(character *self, character *players, level_t *level)
     }
 }        
 
-void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state *dummy_input) {
+void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state *dummy_input, float dt) {
     dummy_input->active_actions = 0;
     if (!(enemy->meta.state & ACTIVE) || !enemy->meta.is_enemy) return;
 
-    if (!(enemy->meta.state & SPAWNED)) {
-        // =========================================================================
-        // 0. VIEWPORT CHECK: Only simulate AI if within the camera bounds
-        // =========================================================================
-        float cam_left   = camera.x;
-        float cam_right  = camera.x + camera.width;
-        float cam_top    = camera.y;
-        float cam_bottom = camera.y + camera.height;
+    // =========================================================================
+    // 1. UNIVERSAL VIEWPORT CHECK (Enforced every single frame)
+    // =========================================================================
+    float cam_left   = camera.x;
+    float cam_right  = camera.x + camera.width;
+    float cam_top    = camera.y;
+    float cam_bottom = camera.y + camera.height;
+    float buffer     = 32.0f; 
 
-        float buffer = 32.0f; 
-
-        if (enemy->x < (cam_left - buffer)  || enemy->x > (cam_right + buffer) ||
-            enemy->y < (cam_top - buffer)   || enemy->y > (cam_bottom + buffer)) {
-            return; 
-        }
-
-        enemy->meta.state |= SPAWNED;
+    if (enemy->x < (cam_left - buffer)  || enemy->x > (cam_right + buffer) ||
+        enemy->y < (cam_top - buffer)   || enemy->y > (cam_bottom + buffer)) {
+        enemy->meta.state &= ~SPAWNED; // Force un-spawn status if scrolled off-camera
+        return; 
     }
 
     // =========================================================================
-    // 1. NEAREST TARGET TRACKING: Find the closest active player
+    // 2. TIMING LAZY INITIALIZATION: Lock home row upon hitting screen view
+    // =========================================================================
+    if (!(enemy->meta.state & SPAWNED)) {
+        enemy->meta.ai_home_row = (int)floorf((enemy->y + (float)PLAYER_HEIGHT + 4.0f) / (float)TILE_SIZE);
+        enemy->meta.state |= SPAWNED; 
+    }
+
+    // =========================================================================
+    // 3. --- FIXED: SELF-HEALING HOME ROW SAFETY TRACKER ---
+    // =========================================================================
+    int enemy_home_row = enemy->meta.ai_home_row;
+    int enemy_actual_current_row = (int)floorf((enemy->y + (float)PLAYER_HEIGHT + 4.0f) / (float)TILE_SIZE);
+
+    // If the enemy has physically left its home row (due to a fall or knockback)
+    if (enemy_actual_current_row != enemy_home_row) {
+        
+        // Wait until the physics engine flags them as completely stable on solid ground
+        if (enemy->physics.state & GROUNDED) {
+            // SUCCESS: Adapt to the new platform seamlessly!
+            enemy->meta.ai_home_row = enemy_actual_current_row;
+            enemy_home_row = enemy_actual_current_row; // Update local tracker variable
+        } else {
+            // While they are actively falling through mid-air, clear their movement inputs 
+            // so they drop straight down smoothly instead of drifting sideways.
+            return; 
+        }
+    }
+
+    // =========================================================================
+    // 4. TARGET TRACKING: Find nearest player on the matching platform row
     // =========================================================================
     character *closest_player = NULL;
     float min_distance = 999999.0f;
@@ -278,6 +304,12 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
         const character *player = &state->players[p];
         if (!(player->meta.state & ACTIVE)) continue;
 
+        int player_current_row = (int)floorf((player->y + (float)PLAYER_HEIGHT + 4.0f) / (float)TILE_SIZE);
+
+        if (player_current_row != enemy_home_row) {
+            continue; // Player is on a completely different tracking plane; skip
+        }
+
         float dist_x = fabsf(player->x - enemy->x);
         if (dist_x < min_distance) {
             min_distance = dist_x;
@@ -285,23 +317,30 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
         }
     }
 
-    if (closest_player == NULL) return;
-
     // =========================================================================
-    // 2. CHOOSE BASE INTENT DIRECTION
+    // 5. BASE DIRECTIONAL INTENT LOGIC WITH IDLE PATROL FALLBACK
     // =========================================================================
     bool wants_move_left = false;
     bool wants_move_right = false;
 
-    if (enemy->meta.type == GOOMBA) {
-        if (enemy->x < closest_player->x) {
+    if (closest_player == NULL) {
+        // Idle Guard Patrol routing using basic physics velocities
+        if (enemy->physics.vx > 0.1f) {
             wants_move_right = true;
-        } else {
+        } else if (enemy->physics.vx < -0.1f) {
             wants_move_left = true;
+        } else {
+            // Break dead-center locks rhythmically using your new metadata frame property
+            wants_move_right = (enemy->meta.frame % 2 == 0); 
+            wants_move_left  = !wants_move_right;
         }
     } 
-    else if (enemy->meta.type == SKELETON) {
-        if (min_distance < 200.0f) {
+    else {
+        // FIXED: Run intent destination logic for BOTH types BEFORE the cliff radar ticks
+        if (enemy->meta.type == GOOMBA) {
+            ai_behavior_goomba(enemy, closest_player, &wants_move_left, &wants_move_right);
+        }
+        else if (enemy->meta.type == SKELETON) {
             if (enemy->x < closest_player->x - 4.0f) {
                 wants_move_right = true;
             } else if (enemy->x > closest_player->x + 4.0f) {
@@ -311,48 +350,129 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
     }
 
     // =========================================================================
-    // 3. --- PROXIMITY FLUIDITY BUFFER (ANTI-STACKING CROWD CONTROL) ---
+    // 6. RADAR EDGE SCANNER: Verify floor stability ahead (DYNAMIC VELOCITY LOGIC)
     // =========================================================================
-    // Look ahead to check if another active enemy is blocking the path
-    float personal_space_buffer = 24.0f; // Distance in pixels to keep from allies
+    bool hit_cliff_edge = false;
+    int ground_tile_y = (int)floorf((enemy->y + (float)PLAYER_HEIGHT + 4.0f) / (float)TILE_SIZE); 
 
-    for (int e = 0; e < MAX_ENEMIES; e++) {
-        const character *other = &state->enemies[e];
-        
-        // Skip checking against itself, or inactive/unspawned enemies
-        if (other == enemy || !(other->meta.state & ACTIVE) || !(other->meta.state & SPAWNED)) {
-            continue;
-        }
+    // Expand the scanning ray dynamically based on frame speed (vx * dt) to catch fast ticks
+    float dynamic_forward_look = 4.0f + (fabsf(enemy->physics.vx) * dt); // Using frame dt parameter passing
 
-        // Only worry about allies on roughly the same vertical platform plane
-        if (fabsf(other->y - enemy->y) < 16.0f) {
-            float dx = other->x - enemy->x;
-
-            // If an ally is close to the right and we want to move right, cancel it
-            if (wants_move_right && dx > 0.0f && dx < personal_space_buffer) {
-                wants_move_right = false;
+    if (ground_tile_y < MAP_HEIGHT) {
+        if (wants_move_right) {
+            int check_x = (int)floorf((enemy->x + (float)PLAYER_WIDTH + dynamic_forward_look) / (float)TILE_SIZE);
+            if (check_x < MAP_WIDTH) {
+                if (state->level.map_data[ground_tile_y * MAP_WIDTH + check_x] == 0) { 
+                    wants_move_right = false;
+                    hit_cliff_edge = true;
+                }
             }
-            // If an ally is close to the left and we want to move left, cancel it
-            if (wants_move_left && dx < 0.0f && dx > -personal_space_buffer) {
-                wants_move_left = false;
+        }
+        else if (wants_move_left) {
+            int check_x = (int)floorf((enemy->x - dynamic_forward_look) / (float)TILE_SIZE);
+            if (check_x >= 0) {
+                if (state->level.map_data[ground_tile_y * MAP_WIDTH + check_x] == 0) { 
+                    wants_move_left = false;
+                    hit_cliff_edge = true;
+                }
             }
         }
     }
 
+    // Turn patrolling units around smoothly if they strike an unmapped edge
+    if (hit_cliff_edge && closest_player == NULL) {
+        if (enemy->physics.vx > 0.0f) {
+            wants_move_left = true;
+            wants_move_right = false;
+        } else {
+            wants_move_right = true;
+            wants_move_left = false;
+        }
+    }
+
     // =========================================================================
-    // 4. APPLY SANITIZED INPUT ACTIONS
+    // 7. DELEGATE COMPLEX SUB-BEHAVIORS (Passing down locked radar flags)
+    // =========================================================================
+    if (enemy->meta.type == SKELETON && closest_player != NULL) {
+        ai_behavior_skeleton(
+            enemy, 
+            closest_player, 
+            min_distance, 
+            hit_cliff_edge, 
+            dummy_input, 
+            &wants_move_left, 
+            &wants_move_right
+        );
+    }
+
+    // =========================================================================
+    // 8. ANTI-STACKING CROWD CONTROL: Keep spacing between entities clean
+    // =========================================================================
+    float personal_space_buffer = 24.0f; 
+    for (int e = 0; e < MAX_ENEMIES; e++) {
+        const character *other = &state->enemies[e];
+        if (other == enemy || !(other->meta.state & ACTIVE) || !(other->meta.state & SPAWNED)) continue;
+
+        if (fabsf(other->y - enemy->y) < 16.0f) {
+            float dx = other->x - enemy->x;
+            if (wants_move_right && dx > 0.0f && dx < personal_space_buffer) wants_move_right = false;
+            if (wants_move_left && dx < 0.0f && dx > -personal_space_buffer)  wants_move_left = false;
+        }
+    }
+
+    // =========================================================================
+    // 9. COMMIT FINAL ACTIONS TO DUMMY INPUT REGISTER
     // =========================================================================
     if (wants_move_right) dummy_input->active_actions |= ACTION_MOVE_RIGHT;
     if (wants_move_left)  dummy_input->active_actions |= ACTION_MOVE_LEFT;
+}
 
-    // Handle secondary jumping requirements for skeletons
-    if (enemy->meta.type == SKELETON && (min_distance < 200.0f)) {
-        bool blocked_by_wall = fabsf(enemy->physics.vx) < 0.1f;
-        bool player_is_above = (enemy->y > closest_player->y + 24.0f);
+void ai_behavior_skeleton(character *enemy, const character *target, float distance, bool hit_cliff_edge, input_state *dummy_input, bool *move_left, bool *move_right) {
+    // Only engage if player target falls inside its active horizontal vision radius
+    if (distance >= 200.0f) return;
 
-        if ((enemy->physics.state & GROUNDED) && (blocked_by_wall || player_is_above)) {
+    // Decrement jump interval cooldown frame timer properties natively
+    if (enemy->meta.ai_jump_cooldown > 0) {
+        enemy->meta.ai_jump_cooldown--;
+    }
+
+    // Scenario A: Hit a cliff edge but want to pursue the target over the open gap
+    if (hit_cliff_edge) {
+        if (enemy->meta.ai_jump_cooldown == 0 && (enemy->physics.state & GROUNDED)) {
+            // Restore movement directions to launch forward through the air cleanly
+            if (enemy->x < target->x) *move_right = true;
+            else *move_left = true;
+
             dummy_input->active_actions |= ACTION_JUMP;
+            enemy->meta.ai_jump_cooldown = 60; // 1-second leap cooldown window
         }
+    }
+    // Scenario B: Terrain is safe, navigate or scale vertical geometry blocks normal pathing
+    else {
+        if (enemy->x < target->x - 4.0f) {
+            *move_right = true;
+        } else if (enemy->x > target->x + 4.0f) {
+            *move_left = true;
+        }
+
+        // Standard wall collision jumping: Hop up if running into vertical tile boundaries
+        if ((enemy->physics.state & GROUNDED) && enemy->meta.ai_jump_cooldown == 0) {
+            bool blocked_moving_right = (*move_right && enemy->physics.vx < 0.1f);
+            bool blocked_moving_left  = (*move_left && enemy->physics.vx > -0.1f);
+
+            if (blocked_moving_right || blocked_moving_left) {
+                dummy_input->active_actions |= ACTION_JUMP;
+                enemy->meta.ai_jump_cooldown = 90; // 1.5-second standard jump cooldown
+            }
+        }
+    }
+}
+
+void ai_behavior_goomba(const character *enemy, const character *target, bool *move_left, bool *move_right) {
+    if (enemy->x < target->x) {
+        *move_right = true;
+    } else {
+        *move_left = true;
     }
 }
 

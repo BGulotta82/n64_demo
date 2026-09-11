@@ -40,9 +40,12 @@ typedef struct {
     int coyote_frames;       // Time allowed to jump AFTER leaving a ledge
     int jump_buffer_frames, invincibility_frames;;  // Time to remember a jump press BEFORE touching down
     int health;
+    int frame;
+    int ai_home_row;         
+    int ai_jump_cooldown;    
     bool is_enemy;
-    character_state state;                // Is this character active in the game world?
-    character_type type;      // Type of character (e.g., KNIGHT, ELF, etc.)
+    character_state state;                
+    character_type type;      
 } character_meta;
 
 typedef struct {

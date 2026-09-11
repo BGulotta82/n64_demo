@@ -340,11 +340,17 @@ void check_pve_combat(game_state_t *state) {
             player->meta.invincibility_frames--;
         }
 
+        // --- CLUSTER FIX STEP 1 ---
+        // Cache the player's vertical velocity BEFORE entering the enemy loop.
+        // Once the player bounces, their actual .vy becomes negative, but this 
+        // cached value keeps the stomp window open for the rest of the cluster on this frame.
+        float initial_frame_vy = player->physics.vy;
+        bool registered_stomp_this_frame = false;
+
         for (int e = 0; e < MAX_ENEMIES; e++) {
             character *enemy = &state->enemies[e];
             if (!(enemy->meta.state & ACTIVE)) continue;
 
-            // Round float coordinates to integer bounding boxes for precision checking
             int p_x = (int)(player->x + 0.5f);
             int p_y = (int)(player->y + 0.5f);
             int e_x = (int)(enemy->x + 0.5f);
@@ -356,28 +362,37 @@ void check_pve_combat(game_state_t *state) {
                 p_y + (int)PLAYER_HEIGHT > e_y) {
 
                 float player_bottom = player->y + PLAYER_HEIGHT;
-                float enemy_midpoint = enemy->y + (PLAYER_HEIGHT / 2.0f);
+                
+                // Set threshold to top 25% of the enemy
+                float enemy_stomp_threshold = enemy->y + (PLAYER_HEIGHT * 0.25f);
 
-                    // Stomp Check
-                    if (player->physics.vy > 0.0f && player_bottom <= enemy_midpoint + 4.0f) {
-                        enemy->meta.health--;
-                        if (enemy->meta.health <= 0) {
-                            enemy->meta.state &= ~ACTIVE;
-                        }                        
+                // --- CLUSTER FIX STEP 2 ---
+                // Evaluate the stomp using our CACHED initial vertical velocity
+                if (initial_frame_vy > 0.0f && player_bottom <= enemy_stomp_threshold + 8.0f) {
+                    enemy->meta.health--;
+                    if (enemy->meta.health <= 0) {
+                        enemy->meta.state &= ~ACTIVE;
+                    }                        
 
-                        // Satisfying bounce upward
-                        player->physics.vy = player->physics.jump_force * 0.75f;
-                        player->physics.state &= ~GROUNDED;
-                        player->physics.state |= JUMPING;
-                        player->meta.coyote_frames = 0;
+                    // Force the upward bounce vector cleanly
+                    player->physics.vy = -fabsf(player->physics.jump_force) * 0.75f;
+                    
+                    player->physics.state &= ~GROUNDED;
+                    player->physics.state |= JUMPING;
+                    player->meta.coyote_frames = 0;
 
-                        continue; // ◄ Safe here! Skips the rest of this cell's checks and checks the next enemy asset slot
-                    }               
-                    else if (player->meta.invincibility_frames == 0) { // Hurt Check
+                    // Tag that a stomp happened so the player is immune to the rest of the loop
+                    registered_stomp_this_frame = true;
+
+                    continue; 
+                }               
+                // --- CLUSTER FIX STEP 3 ---
+                // Only evaluate the hurt check if the player hasn't successfully stomped something on this exact frame
+                else if (!registered_stomp_this_frame && player->meta.invincibility_frames == 0) { 
                     player->meta.health--;
                     if (player->meta.health == 0) {
                         player->meta.state &= ~ACTIVE;
-                        break;
+                        break; // Break the enemy loop since this player just died
                     }
 
                     if (player->x + (PLAYER_WIDTH / 2.0f) < enemy->x + (PLAYER_WIDTH / 2.0f)) {
@@ -385,6 +400,7 @@ void check_pve_combat(game_state_t *state) {
                     } else {
                         player->physics.vx = 120.0f;  
                     }
+                    
                     player->physics.vy = -100.0f; 
                     player->physics.state &= ~GROUNDED;
                     player->meta.invincibility_frames = 60; 

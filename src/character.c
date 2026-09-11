@@ -18,7 +18,7 @@ float physics_constants[NUMBER_OF_CHARACTER_TYPES][9] = {
     // GOOMBA
     {1.0f, 40.0f,  400.0f,  600.0f,  100.0f, 100.0f, 32.0f, 0.24f, 400.0f},
     // SKELETON
-    {2.0f, 75.0f,  500.0f,  600.0f,  300.0f, 150.0f, 28.0f, 0.24f, 400.0f}
+    {2.0f, 75.0f,  500.0f,  600.0f,  300.0f, 150.0f, 16.0f, 0.24f, 400.0f}
 };
 
 void character_init(character *character, character_type type) {

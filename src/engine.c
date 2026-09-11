@@ -64,7 +64,7 @@ void engine_update(game_state_t *state, float dt) {
 
         int old_x = state->players[i].x;
      
-        character_update(&state->players[i], state->players, &state->input[i], dt);
+        character_update(&state->players[i], state->players, &state->input[i], state->level.map_data, dt);
 
         // Only constrain horizontal movement for same-screen multiplayer.
         if (!group_would_fit_horizontally(state, i, state->players[i].x)) {
@@ -84,7 +84,7 @@ void engine_update(game_state_t *state, float dt) {
 
         //Run them through the exact same update system!
         //Pass the player array down so enemies can physically interact with players
-        character_update(&state->enemies[i], state->players, &simulated_input, dt);
+        character_update(&state->enemies[i], state->players, &simulated_input,state->level.map_data, dt);
     }
 
     state->frame++;
@@ -100,7 +100,7 @@ void check_new_player_spawn(game_state_t *state, int i)
         switch (i)
         {
         case 0:
-            type = KNIGHT;
+            type = KNIGHT;            
             break;
         case 1:
             type = ELF;
@@ -119,16 +119,62 @@ void check_new_player_spawn(game_state_t *state, int i)
 
 void spawn_new_player(game_state_t *state, character_type type, int i)
 {
+    if (i < 0 || i >= MAX_PLAYERS) return;
+
     if (!state->players[i].active)
     {
         character_init(&state->players[i], type);
         state->players[i].active = true;
-        if (i > 0)
+
+        // --- Player 1 (The Host) Spawns at Level Point ---
+        if (i == 0)
         {
+            state->players[i].x = state->level.spawn_x;
+            state->players[i].y = state->level.spawn_y;
+        } 
+        // --- Players 2, 3, and 4 Drop In Dynamically ---
+        else 
+        {
+            // Fallback safety check: If Player 1 somehow died or is inactive, use level default
+            if (!state->players[0].active) {
+                state->players[i].x = state->level.spawn_x;
+                state->players[i].y = state->level.spawn_y;
+                return;
+            }
+
             bool p1_moving_right = state->players[0].physics.state & MOVING_RGHT;
-            int offset = p1_moving_right ? -30 : 30; // spawn behind player 0 based on their movement direction
-            state->players[i].x = state->players[0].x + offset;
-            state->players[i].y = state->players[0].y;
+            float desired_offset = p1_moving_right ? -20.0f : 20.0f; // Tucked slightly closer than 30px
+            
+            float target_x = state->players[0].x + desired_offset;
+            float target_y = state->players[0].y;
+
+            // --- LEVEL BOUNDARY SAFETY WALLS ---
+            // Keep late spawns within the map dimensions so they don't spawn off-screen
+            if (target_x < 0.0f) target_x = 0.0f;
+            if (target_x + PLAYER_WIDTH > (float)(MAP_WIDTH * TILE_SIZE)) {
+                target_x = (float)(MAP_WIDTH * TILE_SIZE) - PLAYER_WIDTH;
+            }
+
+            // --- TILE OVERLAP PREVENTER ---
+            // Sample the tiles where the player's torso would spawn
+            int test_tile_x = (int)(target_x + (PLAYER_WIDTH / 2.0f)) / TILE_SIZE;
+            int test_tile_y = (int)(target_y + (PLAYER_HEIGHT / 2.0f)) / TILE_SIZE;
+
+            uint8_t target_tile_block = get_tile_at(state->level.map_data, test_tile_x, test_tile_y);
+
+            if (target_tile_block == 2) {
+                // If the desired offset is a solid block, bypass the offset completely.
+                // This spawns Player 2 EXACTLY inside Player 1's space, safely leveraging 
+                // your player-to-player collision code to gently push them apart!
+                state->players[i].x = state->players[0].x;
+                state->players[i].y = state->players[0].y;
+            } else {
+                state->players[i].x = target_x;
+                state->players[i].y = target_y;
+            }
+
+            // Give the new player temporary invincibility frames here if your structural model has them!
+            // state->players[i].invincibility_frames = 60;
         }
     }
 }

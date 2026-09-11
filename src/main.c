@@ -15,15 +15,15 @@ int main(void) {
     renderer_init();
     timer_init();
     engine_init(&state);
-    load_level_binary(&state, "/level_test.bin");
-    camera_init(&camera, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT);
+    load_level_binary("/level_test.bin", &state.level, state.enemies);
+    camera_init(&camera, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT, state.level.spawn_x, state.level.spawn_y);
 
     unsigned long long last_ticks = timer_ticks();
 
     while (1) {
         // 1. SAFELY Lock the backbuffer. 
         // If the RDP is completely busy or the TV isn't ready, this returns NULL
-        surface_t *disp = display_lock();
+        surface_t *disp = display_get();
         
         // 2. THE FIXED VS-YNC PACER:
         // If it returns NULL, we skip the rest of the frame calculations. 

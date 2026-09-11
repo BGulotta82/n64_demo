@@ -54,7 +54,7 @@ void character_init(character *character, character_type type) {
     character->physics.state = NONE;
 }
 
-void character_update(character *self, character *players, input_state *input, float dt) {
+void character_update(character *self, character *players, input_state *input, uint8_t *map_data, float dt) {
     if (!self || !input || !self->active) return;
 
     // Reset player-grounding flag before checking collisions this frame
@@ -70,12 +70,12 @@ void character_update(character *self, character *players, input_state *input, f
     
     // --- X Axis ---
     self->x += self->physics.vx * dt;
-    check_wall_collision(self);
+    check_wall_collision(self, map_data);
 
     // --- Y Axis ---
     self->y += self->physics.vy * dt;
-    check_ceiling_collision(self);
-    check_grounded(self); // Sets GROUNDED if touching solid world map tiles
+    check_ceiling_collision(self, map_data);
+    check_grounded(self, map_data); // Sets GROUNDED if touching solid world map tiles
 
     // --- Dynamic Inter-character Collisions ---
     // If we aren't touching world tiles, this might re-apply GROUNDED if we land on a player
@@ -222,7 +222,7 @@ void handle_jump(character *self, character *players, input_state *input)
     }
 }
 
-void check_wall_collision(character *character)
+void check_wall_collision(character *character, uint8_t *map_data)
 {
     // 1. Calculate X tile coordinates for left and right edges
     int tile_left_x  = (int)(character->x) / TILE_SIZE;
@@ -235,13 +235,13 @@ void check_wall_collision(character *character)
     int tile_feet_y  = (int)(character->y + PLAYER_HEIGHT - 1.0f) / TILE_SIZE;
 
     // 3. Look up all tile values from the binary matrix array
-    uint8_t left_head  = get_tile_at(tile_left_x, tile_head_y);
-    uint8_t left_torso = get_tile_at(tile_left_x, tile_torso_y);
-    uint8_t left_feet  = get_tile_at(tile_left_x, tile_feet_y);
+    uint8_t left_head  = get_tile_at(map_data, tile_left_x, tile_head_y);
+    uint8_t left_torso = get_tile_at(map_data, tile_left_x, tile_torso_y);
+    uint8_t left_feet  = get_tile_at(map_data, tile_left_x, tile_feet_y);
 
-    uint8_t right_head  = get_tile_at(tile_right_x, tile_head_y);
-    uint8_t right_torso = get_tile_at(tile_right_x, tile_torso_y);
-    uint8_t right_feet  = get_tile_at(tile_right_x, tile_feet_y);
+    uint8_t right_head  = get_tile_at(map_data, tile_right_x, tile_head_y);
+    uint8_t right_torso = get_tile_at(map_data, tile_right_x, tile_torso_y);
+    uint8_t right_feet  = get_tile_at(map_data, tile_right_x, tile_feet_y);
 
     // 4. Resolve left wall collisions (if any of the 3 points hit a solid block)
     if (left_head == 2 || left_torso == 2 || left_feet == 2) {
@@ -258,7 +258,7 @@ void check_wall_collision(character *character)
     }
 }
 
-void check_grounded(character *character)
+void check_grounded(character *character, uint8_t *map_data)
 {
     int tile_left_x  = (int)(character->x + 1.0f) / TILE_SIZE;
     int tile_right_x = (int)(character->x + PLAYER_WIDTH - 1.0f) / TILE_SIZE;
@@ -271,8 +271,8 @@ void check_grounded(character *character)
 
     for (int tile_y = start_tile_y; tile_y <= end_tile_y; tile_y++)
     {
-        uint8_t tile_below_left  = get_tile_at(tile_left_x, tile_y);
-        uint8_t tile_below_right = get_tile_at(tile_right_x, tile_y);
+        uint8_t tile_below_left  = get_tile_at(map_data, tile_left_x, tile_y);
+        uint8_t tile_below_right = get_tile_at(map_data, tile_right_x, tile_y);
 
         if (tile_below_left == 2 || tile_below_right == 2) 
         {
@@ -295,14 +295,14 @@ void check_grounded(character *character)
     }
 }
 
-void check_ceiling_collision(character *character)
+void check_ceiling_collision(character *character, uint8_t *map_data)
 {
     int tile_left_x  = (int)(character->x + 1.0f) / TILE_SIZE;
     int tile_right_x = (int)(character->x + PLAYER_WIDTH - 1.0f) / TILE_SIZE;
     int tile_top_y   = (int)(character->y - 1.0f) / TILE_SIZE;
 
-    uint8_t tile_above_left  = get_tile_at(tile_left_x, tile_top_y);
-    uint8_t tile_above_right = get_tile_at(tile_right_x, tile_top_y);
+    uint8_t tile_above_left  = get_tile_at(map_data, tile_left_x, tile_top_y);
+    uint8_t tile_above_right = get_tile_at(map_data, tile_right_x, tile_top_y);
 
     if (tile_above_left == 2 || tile_above_right == 2) {
         // --- CEILING BIAS ---

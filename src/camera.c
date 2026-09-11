@@ -1,13 +1,33 @@
 #include "camera.h"
 #include "constants.h"
 
-void camera_init(camera_t *cam, int world_width, int world_height, int screen_width, int screen_height) {
-    cam->x = 0;
-    cam->y = 0;
+void camera_init(camera_t *cam, int world_width, int world_height, int screen_width, int screen_height, float spawn_x, float spawn_y) {
     cam->width = screen_width;
     cam->height = screen_height;
     cam->world_width = world_width;
     cam->world_height = world_height;
+
+    // --- CENTERING CALCULATIONS ---
+    // Subtract half the screen dimensions from the player spawn coordinates
+    int desired_x = (int)spawn_x - (screen_width / 2);
+    int desired_y = (int)spawn_y - (screen_height / 2);
+
+    // --- MAP BOUNDARY CLAMPING ---
+    // Prevent the camera from scrolling past the left/top edges
+    if (desired_x < 0) desired_x = 0;
+    if (desired_y < 0) desired_y = 0;
+
+    // Prevent the camera from scrolling past the right/bottom edges
+    if (desired_x + cam->width > cam->world_width) {
+        desired_x = cam->world_width - cam->width;
+    }
+    if (desired_y + cam->height > cam->world_height) {
+        desired_y = cam->world_height - cam->height;
+    }
+
+    // Set the finalized, safely-bounded starting positions
+    cam->x = desired_x;
+    cam->y = desired_y;
 }
 
 void camera_update(camera_t *cam, int *player_x, int *player_y, bool *player_active, int player_count) {

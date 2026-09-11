@@ -1,6 +1,7 @@
 #ifndef ENGINE_H
 #define ENGINE_H
 
+#include "level.h"
 #include "input.h"
 #include "character.h"
 
@@ -9,6 +10,7 @@ typedef struct {
     input_state input[MAX_PLAYERS];
     character players[MAX_PLAYERS];
     character enemies[MAX_ENEMIES];
+    level_t level; 
 } game_state_t;
 
 void engine_init(game_state_t *state);

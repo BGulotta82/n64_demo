@@ -66,7 +66,7 @@ typedef struct {
     character_physics physics; // Physics properties for the character
 } character;
 
-void character_init(character *character, character_type type);
+void character_init(character *character, character_type type, bool is_enemy);
 void character_update(character *self, character *players, input_state *input, uint8_t *map_data, float dt);
 void check_no_input(input_state *input, character *character);
 void check_grounded(character *character, uint8_t *map_data);

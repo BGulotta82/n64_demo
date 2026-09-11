@@ -57,11 +57,11 @@ void spawn_entities(level_t *level, character *enemies){
                 }
 
                 // Resolve the enum type dynamically from our configuration table
-                character_type determined_type = (character_type)tile_to_enemy_map[tile_id];
+                character_type enemy_type = (character_type)tile_to_enemy_map[tile_id];
                 character *enemy = &enemies[enemy_index];
                 
                 // Initialize using your uniform engine functions
-                character_init(enemy, determined_type);
+                character_init(enemy, enemy_type, true);
 
                 // Calculate spawn boundaries safely
                 enemy->x = (float)(x * TILE_SIZE);

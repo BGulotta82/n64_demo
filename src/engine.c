@@ -187,7 +187,7 @@ void check_new_player_spawn(character *self, character *players, level_t *level,
     {
         character_type type = (rand() % 4) + 1; 
 
-        character_init(self, type);
+        character_init(self, type, false);
         self->meta.state |= ACTIVE;
         self->meta.state |= SPAWNED;
         spawn_new_player(self, players, level);
@@ -253,23 +253,20 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
         // =========================================================================
         // 0. VIEWPORT CHECK: Only simulate AI if within the camera bounds
         // =========================================================================
-        // Note: Adjust 'state->camera' properties here if your struct fields differ.
         float cam_left   = camera.x;
         float cam_right  = camera.x + camera.width;
         float cam_top    = camera.y;
         float cam_bottom = camera.y + camera.height;
 
-        // 32-pixel outer padding so enemies activate seamlessly right before scrolling into view
         float buffer = 32.0f; 
 
         if (enemy->x < (cam_left - buffer)  || enemy->x > (cam_right + buffer) ||
             enemy->y < (cam_top - buffer)   || enemy->y > (cam_bottom + buffer)) {
-            return; // Outside the camera view; leave dummy_input cleared so they stand idle
+            return; 
         }
 
         enemy->meta.state |= SPAWNED;
     }
-
 
     // =========================================================================
     // 1. NEAREST TARGET TRACKING: Find the closest active player
@@ -288,45 +285,73 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
         }
     }
 
-    // If no active players exist in the entire game world, enemies stand completely idle
     if (closest_player == NULL) return;
 
     // =========================================================================
-    // 2. FLAG-FREE BEHAVIOR LOGIC (Modifying dummy_input ONLY)
+    // 2. CHOOSE BASE INTENT DIRECTION
     // =========================================================================
-    
-    // --- GOOMBA: Relentless Zombie/Chaser AI ---
+    bool wants_move_left = false;
+    bool wants_move_right = false;
+
     if (enemy->meta.type == GOOMBA) {
-        // Simply press Left or Right depending on which side of the enemy the player is on
         if (enemy->x < closest_player->x) {
-            dummy_input->active_actions |= ACTION_MOVE_RIGHT;
+            wants_move_right = true;
         } else {
-            dummy_input->active_actions |= ACTION_MOVE_LEFT;
+            wants_move_left = true;
         }
-        
-        // Note: No jump inputs or wall-turning states are tracked. If a Goomba hits a wall,
-        // it will continuously push against it until the player jumps over it or walks away!
     } 
-    
-    // --- SKELETON: Aggressive Agility Chaser AI ---
     else if (enemy->meta.type == SKELETON) {
-        // Only engage if the closest player is within its vision radius (e.g., 200 pixels)
         if (min_distance < 200.0f) {
-            
-            // Advance horizontally toward the target
             if (enemy->x < closest_player->x - 4.0f) {
-                dummy_input->active_actions |= ACTION_MOVE_RIGHT;
+                wants_move_right = true;
             } else if (enemy->x > closest_player->x + 4.0f) {
-                dummy_input->active_actions |= ACTION_MOVE_LEFT;
+                wants_move_left = true;
             }
+        }
+    }
 
-            // Only jump if horizontally blocked by a wall OR if the player is noticeably higher up
-            bool blocked_by_wall = fabsf(enemy->physics.vx) < 0.1f;
-            bool player_is_above = (enemy->y > closest_player->y + 24.0f);
+    // =========================================================================
+    // 3. --- PROXIMITY FLUIDITY BUFFER (ANTI-STACKING CROWD CONTROL) ---
+    // =========================================================================
+    // Look ahead to check if another active enemy is blocking the path
+    float personal_space_buffer = 24.0f; // Distance in pixels to keep from allies
 
-            if ((enemy->physics.state & GROUNDED) && (blocked_by_wall || player_is_above)) {
-                dummy_input->active_actions |= ACTION_JUMP;
+    for (int e = 0; e < MAX_ENEMIES; e++) {
+        const character *other = &state->enemies[e];
+        
+        // Skip checking against itself, or inactive/unspawned enemies
+        if (other == enemy || !(other->meta.state & ACTIVE) || !(other->meta.state & SPAWNED)) {
+            continue;
+        }
+
+        // Only worry about allies on roughly the same vertical platform plane
+        if (fabsf(other->y - enemy->y) < 16.0f) {
+            float dx = other->x - enemy->x;
+
+            // If an ally is close to the right and we want to move right, cancel it
+            if (wants_move_right && dx > 0.0f && dx < personal_space_buffer) {
+                wants_move_right = false;
             }
+            // If an ally is close to the left and we want to move left, cancel it
+            if (wants_move_left && dx < 0.0f && dx > -personal_space_buffer) {
+                wants_move_left = false;
+            }
+        }
+    }
+
+    // =========================================================================
+    // 4. APPLY SANITIZED INPUT ACTIONS
+    // =========================================================================
+    if (wants_move_right) dummy_input->active_actions |= ACTION_MOVE_RIGHT;
+    if (wants_move_left)  dummy_input->active_actions |= ACTION_MOVE_LEFT;
+
+    // Handle secondary jumping requirements for skeletons
+    if (enemy->meta.type == SKELETON && (min_distance < 200.0f)) {
+        bool blocked_by_wall = fabsf(enemy->physics.vx) < 0.1f;
+        bool player_is_above = (enemy->y > closest_player->y + 24.0f);
+
+        if ((enemy->physics.state & GROUNDED) && (blocked_by_wall || player_is_above)) {
+            dummy_input->active_actions |= ACTION_JUMP;
         }
     }
 }
@@ -340,17 +365,11 @@ void check_pve_combat(game_state_t *state) {
             player->meta.invincibility_frames--;
         }
 
-        // --- CLUSTER FIX STEP 1 ---
-        // Cache the player's vertical velocity BEFORE entering the enemy loop.
-        // Once the player bounces, their actual .vy becomes negative, but this 
-        // cached value keeps the stomp window open for the rest of the cluster on this frame.
-        float initial_frame_vy = player->physics.vy;
-        bool registered_stomp_this_frame = false;
-
         for (int e = 0; e < MAX_ENEMIES; e++) {
             character *enemy = &state->enemies[e];
             if (!(enemy->meta.state & ACTIVE)) continue;
 
+            // Round float coordinates to integer bounding boxes for precision checking
             int p_x = (int)(player->x + 0.5f);
             int p_y = (int)(player->y + 0.5f);
             int e_x = (int)(enemy->x + 0.5f);
@@ -361,38 +380,36 @@ void check_pve_combat(game_state_t *state) {
                 p_y < e_y + (int)PLAYER_HEIGHT &&
                 p_y + (int)PLAYER_HEIGHT > e_y) {
 
+                // =========================================================================
+                // --- DESIGN CRITERIA: CRISP STOMP WINDOW DETECTOR ---
+                // =========================================================================
                 float player_bottom = player->y + PLAYER_HEIGHT;
                 
-                // Set threshold to top 25% of the enemy
+                // Set the stomp threshold to the top 25% of the enemy structure
                 float enemy_stomp_threshold = enemy->y + (PLAYER_HEIGHT * 0.25f);
 
-                // --- CLUSTER FIX STEP 2 ---
-                // Evaluate the stomp using our CACHED initial vertical velocity
-                if (initial_frame_vy > 0.0f && player_bottom <= enemy_stomp_threshold + 8.0f) {
+                // STOMP CHECK: Must be moving down, and feet must be in the top portion of the target
+                if (player->physics.vy > 0.0f && player_bottom <= enemy_stomp_threshold + 8.0f) {
                     enemy->meta.health--;
                     if (enemy->meta.health <= 0) {
                         enemy->meta.state &= ~ACTIVE;
                     }                        
 
-                    // Force the upward bounce vector cleanly
+                    // CRITICAL DIRECTION FIX: Screen-space coordinates require a NEGATIVE 
+                    // Y velocity vector to bounce UPWARDS away from the ground plane.
                     player->physics.vy = -fabsf(player->physics.jump_force) * 0.75f;
                     
                     player->physics.state &= ~GROUNDED;
                     player->physics.state |= JUMPING;
                     player->meta.coyote_frames = 0;
 
-                    // Tag that a stomp happened so the player is immune to the rest of the loop
-                    registered_stomp_this_frame = true;
-
-                    continue; 
+                    continue; // Safe! Skips out to process the next entity slot
                 }               
-                // --- CLUSTER FIX STEP 3 ---
-                // Only evaluate the hurt check if the player hasn't successfully stomped something on this exact frame
-                else if (!registered_stomp_this_frame && player->meta.invincibility_frames == 0) { 
+                else if (player->meta.invincibility_frames == 0) { // Hurt Check
                     player->meta.health--;
                     if (player->meta.health == 0) {
                         player->meta.state &= ~ACTIVE;
-                        break; // Break the enemy loop since this player just died
+                        break;
                     }
 
                     if (player->x + (PLAYER_WIDTH / 2.0f) < enemy->x + (PLAYER_WIDTH / 2.0f)) {
@@ -401,6 +418,7 @@ void check_pve_combat(game_state_t *state) {
                         player->physics.vx = 120.0f;  
                     }
                     
+                    // Matches screen-space directional damage bounce pop up
                     player->physics.vy = -100.0f; 
                     player->physics.state &= ~GROUNDED;
                     player->meta.invincibility_frames = 60; 

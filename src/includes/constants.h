@@ -16,7 +16,7 @@
 #define MAX_ENEMIES     (100)
 #define NUMBER_OF_CHARACTER_TYPES (6)
 #define MAX_LEVELS      (3)
-
+#define MAX_VIEWPORTS (4)
 // 2. Input Buffers
 #define JUMP_BUFFER_MAX (5)
 #define COYOTE_MAX (6)

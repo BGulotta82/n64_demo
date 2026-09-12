@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-extern camera_t camera;
+extern camera_t cameras[MAX_VIEWPORTS];
 
 // Group the stage filename and time limit together into a single structure
 typedef struct {
@@ -28,44 +28,6 @@ void engine_init(game_state_t *state) {
     for (int i = 0; i < MAX_PLAYERS; i++) {
         input_init(&state->input[i]);
     }
-}
-
-static bool group_would_fit_horizontally(const game_state_t *state, int player_index, int proposed_x) {
-    int min_x = 999999;
-    int max_x = -999999;
-    int active_count = 0;
-
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-        // Safe bitwise validation check over active player status slots
-        if (!(state->players[i].meta.state & ACTIVE)) {
-            continue;
-        }
-
-        active_count++;
-
-        int px = state->players[i].x;
-        if (i == player_index) {
-            px = proposed_x;
-        }
-
-        int left = px;
-        // FIXED: Dynamically pulls the precise character width parameter out of meta
-        int right = px + state->players[i].meta.width;
-
-        if (left < min_x) min_x = left;
-        if (right > max_x) max_x = right;
-    }
-
-    if (active_count == 0) {
-        return true;
-    }
-
-    // only enforce the horizontal screen bounds
-    if (min_x < camera.x || max_x > camera.x + camera.width) {
-        return false;
-    }
-
-    return true;
 }
 
 void engine_update(game_state_t *state, float dt) {
@@ -122,15 +84,8 @@ void engine_update(game_state_t *state, float dt) {
         }
 
         active_players++;
-
-        int old_x = state->players[i].x;
      
         character_update(&state->players[i], state->players, &state->input[i], state->level.map_data, dt);
-
-        // Only constrain horizontal movement for same-screen multiplayer.
-        if (!group_would_fit_horizontally(state, i, state->players[i].x)) {
-            state->players[i].x = old_x;
-        }
     }
 
     // 2. Update your enemies using simulated AI inputs
@@ -253,16 +208,38 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
     if (!(enemy->meta.state & ACTIVE) || !enemy->meta.is_enemy) return;
 
     // =========================================================================
-    // 1. UNIVERSAL VIEWPORT CHECK (Enforced every single frame)
+    // 1. DYNAMIC MULTI-VIEWPORT CHECK (Enforced across all active cameras)
     // =========================================================================
-    float cam_left   = camera.x;
-    float cam_right  = camera.x + camera.width;
-    float cam_top    = camera.y;
-    float cam_bottom = camera.y + camera.height;
-    float buffer     = 32.0f; 
+    // First, count how many players/viewports are currently active in the match
+    int active_viewports = 0;
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (state->players[i].meta.state & ACTIVE) active_viewports++;
+    }
+    
+    // Default fallback check safety gate
+    if (active_viewports == 0) active_viewports = 1;
 
-    if (enemy->x < (cam_left - buffer)  || enemy->x > (cam_right + buffer) ||
-        enemy->y < (cam_top - buffer)   || enemy->y > (cam_bottom + buffer)) {
+    bool visible_in_any_viewport = false;
+    float buffer = 32.0f; 
+
+    // Scan every active camera footprint to look for this enemy
+    for (int v = 0; v < active_viewports; v++) {
+        // Read directly out of your global cameras configuration array
+        float cam_left   = (float)cameras[v].x;
+        float cam_right  = (float)(cameras[v].x + cameras[v].width);
+        float cam_top    = (float)cameras[v].y;
+        float cam_bottom = (float)(cameras[v].y + cameras[v].height);
+
+        // Check if the enemy overlaps this specific viewport window boundary layout
+        if (enemy->x >= (cam_left - buffer)  && enemy->x <= (cam_right + buffer) &&
+            enemy->y >= (cam_top - buffer)   && enemy->y <= (cam_bottom + buffer)) {
+            visible_in_any_viewport = true;
+            break; // Found it! Exit early to save tracking processing cycles
+        }
+    }
+
+    // If completely hidden across all active player windows, drop simulation tasks
+    if (!visible_in_any_viewport) {
         enemy->meta.state &= ~SPAWNED; 
         return; 
     }
@@ -570,17 +547,6 @@ void load_stage_by_index(game_state_t *state, int index) {
 
     state->level_timer = target_time; 
     
-    // Initialize camera tracking window properties securely over the fresh geometry
-    camera_init(
-        &camera, 
-        MAP_WIDTH * TILE_SIZE, 
-        MAP_HEIGHT * TILE_SIZE, 
-        SCREEN_WIDTH, 
-        SCREEN_HEIGHT, 
-        state->level.spawn_x, 
-        state->level.spawn_y
-    );
-
     for (int i = 0; i < MAX_PLAYERS; i++) {
         // If we just cleared a level and this specific player survived (is active), 
         // DO NOT kill them. Keep their active state and health intact!
@@ -623,5 +589,20 @@ void load_stage_by_index(game_state_t *state, int index) {
     else 
     {
         state->match_state = STATE_STAGE_INTRO;
+    }
+
+    // =========================================================================
+    // --- MULTI-VIEWPORT CAMERA ARRAY INITIALIZATION ---
+    // =========================================================================
+    for (int v = 0; v < MAX_VIEWPORTS; v++) {
+        camera_init(
+            &cameras[v],                  // Pass the address of this specific camera element
+            MAP_WIDTH * TILE_SIZE,        // World map bounds metrics
+            MAP_HEIGHT * TILE_SIZE, 
+            SCREEN_WIDTH,                 // Full screen window dimensions as baseline seed
+            SCREEN_HEIGHT, 
+            state->level.spawn_x,         // Safe spawn origin values
+            state->level.spawn_y
+        );
     }
 }

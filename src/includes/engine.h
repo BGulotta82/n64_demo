@@ -4,6 +4,7 @@
 #include "level.h"
 #include "input.h"
 #include "character.h"
+#include "camera.h"
 
 typedef enum {
     STATE_WAITING_TO_START,

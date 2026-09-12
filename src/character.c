@@ -1,43 +1,43 @@
 #include "character.h"
 #include "level.h"
 
-float physics_constants[NUMBER_OF_CHARACTER_TYPES][9] = {
+float physics_constants[NUMBER_OF_CHARACTER_TYPES][9]= {
     // Column Guide:
-    //: Turn Multiplier (Responsiveness when snapping opposite direction)
-    //: Max Speed (Cap on horizontal physics velocity)
-    //: Ground Acceleration (Rate of horizontal speed buildup on floor)
-    //: Ground Friction (Deceleration stopping rate when idling)
-    //: Air Acceleration (Horizontal steering push while airborne)
-    //: Air Friction (Wind resistance slowing forward momentum in air)
-    //: Jump Height (Target peak distance in absolute pixels)
-    //: Jump Time To Peak (Duration in seconds to reach the peak height)
-    //: Terminal Velocity (Maximum allowed falling velocity)
+    // 0: Turn Multiplier (Responsiveness when snapping opposite direction)
+    // 1: Max Speed (Cap on horizontal physics velocity)
+    // 2: Ground Acceleration (Rate of horizontal speed buildup on floor)
+    // 3: Ground Friction (Deceleration stopping rate when idling)
+    // 4: Air Acceleration (Horizontal steering push while airborne)
+    // 5: Air Friction (Wind resistance slowing forward momentum in air)
+    // 6: Jump Height (Target peak distance in absolute pixels)
+    // 7: Jump Time To Peak (Duration in seconds to reach the peak height)
+    // 8: Terminal Velocity (Maximum allowed falling velocity)
 
     // =========================================================================
-    // --- HERO CLASSES (Ramp-up time extended, braking friction tightened) ---
+    // --- HERO CLASSES (+10-15% Velocity Boost, High Friction Braking) ---
     // =========================================================================
     
-    // KNIGHT: Solid, dependable, medium pacing. Takes ~18 frames to hit max speed.
-    { 2.5f, 120.0f, 400.0f, 950.0f, 250.0f, 150.0f, 50.0f, 0.25f, 400.0f },   
+    // KNIGHT: The baseline standard. Paced perfectly at ~1.4 pixels per frame.
+    { 3.0f, 85.0f,  285.0f, 1250.0f, 175.0f, 200.0f, 46.0f, 0.25f, 320.0f },   
     
-    // ELF: Agile and snappy. Quick acceleration ramp-up, snappy stops, high floaty jump.
-    { 3.0f, 135.0f, 550.0f, 1100.0f, 350.0f, 120.0f, 56.0f, 0.22f, 400.0f },   
+    // ELF: Super snappy, responsive, and light on its feet. Highest mobility class.
+    { 3.5f, 96.0f,  400.0f, 1450.0f, 230.0f, 150.0f, 52.0f, 0.22f, 320.0f },   
     
-    // WIZARD: Slowest ramp-up speed, lightweight floaty drift feel in the air.
-    { 2.0f, 110.0f, 300.0f, 800.0f, 200.0f, 100.0f, 48.0f, 0.28f, 400.0f },    
+    // WIZARD: Floatier style. Slow, deliberate build-up with a long, sweeping jump arc.
+    { 2.5f, 74.0f,  230.0f, 1050.0f, 140.0f, 100.0f, 44.0f, 0.29f, 320.0f },    
     
-    // DWARF: High mass weight class. Slow to start moving, but high friction stops him fast.
-    { 2.2f, 115.0f, 350.0f, 1200.0f, 180.0f, 180.0f, 44.0f, 0.26f, 400.0f },    
+    // DWARF: Heavy tank class. Slower to get going, but halts instantly.
+    { 2.8f, 79.0f,  250.0f, 1650.0f, 130.0f, 250.0f, 40.0f, 0.27f, 320.0f },    
 
     // =========================================================================
-    // --- ENEMY CLASSES (Kept intentionally predictable and slow) ---
+    // --- ENEMY CLASSES (Slightly boosted to keep up with players) ---
     // =========================================================================
     
-    // GOOMBA: Continuous zombie march pacing.
-    { 1.0f, 35.0f,  200.0f, 600.0f,  100.0f, 100.0f, 32.0f, 0.24f, 400.0f },
+    // GOOMBA: Methodical walk. Just fast enough that you can't completely ignore it.
+    { 1.0f, 28.0f,  140.0f, 800.0f,  90.0f,  100.0f, 24.0f, 0.24f, 320.0f },
     
-    // SKELETON: Snappy hunter, quick bursts.
-    { 2.0f, 50.0f,  350.0f, 600.0f,  300.0f, 150.0f, 16.0f, 0.24f, 400.0f }
+    // SKELETON: Fast, aggressive patrolling pacing to catch careless players.
+    { 2.0f, 42.0f,  210.0f, 800.0f,  175.0f, 150.0f, 18.0f, 0.24f, 320.0f }
 };
 
 void character_init(character *character, character_type type, bool is_enemy) {

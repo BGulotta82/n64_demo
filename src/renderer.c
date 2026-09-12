@@ -4,7 +4,7 @@
 #include "camera.h"
 
 // Global font handle
-extern camera_t camera;
+extern camera_t cameras[MAX_VIEWPORTS];
 sprite_t* level_tilesheet;
 sprite_t* character_sprites[NUMBER_OF_CHARACTER_TYPES];
 
@@ -30,87 +30,125 @@ void renderer_draw(surface_t *disp, const game_state_t *state) {
     // Attach the RDP queue directly to the locked surface
     rdpq_attach_clear(disp, NULL);
 
-    draw_level(&state->level);
-    draw_characters(state);
-
-    draw_hud(state);
+    draw_dynamic_split_screen(state);
 
     // Detach and flip cleanly at the next VSync interval
     rdpq_detach_show();
 }
 
-void draw_characters(const game_state_t *state) {
-    // 1. Render all active human players
+void draw_dynamic_split_screen(const game_state_t *state) {
+    // 1. Count current live player stats
+    int active_count = 0;
     for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (state->players[i].meta.invincibility_frames > 0 && 
-           (state->players[i].meta.invincibility_frames % 4 < 2)) {
-           continue; // ◄ FIX: Skip ONLY this individual player's drawing routine for this frame!
-        }
-        draw_single_character(&state->players[i]);
+        if (state->players[i].meta.state & ACTIVE) active_count++;
     }
 
-    // 2. Render all active AI enemies
-    for (int i = 0; i < MAX_ENEMIES; i++) {
-        draw_single_character(&state->enemies[i]);
+    if (active_count == 0) return;
+
+    int config_idx = active_count - 1; // Match layout index row (0 to 3)
+    int current_viewport_slot = 0;
+
+    // 2. Loop over player structures to draw active viewports
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (!(state->players[i].meta.state & ACTIVE)) continue;
+
+        // Fetch our dynamic screen dimension layout boundary configurations
+        viewport_layout_t layout = viewport_configs[config_idx][current_viewport_slot];
+
+        // =========================================================================
+        // --- N64 HARDWARE SCISSOR WINDOW GATE ---
+        // =========================================================================
+        // Constrain drawing operations tightly to this quadrant block
+        rdpq_set_scissor(layout.screen_x, layout.screen_y, layout.screen_x + layout.width, layout.screen_y + layout.height);
+
+        // A. Draw Background Map Map geometry from this specific camera slot view
+        // Ensure your tile engine calculates views using cameras[i] and factors layout offsets!
+        draw_map_tiles(&state->level, &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
+
+        // B. Render overlapping active characters inside this quadrant window context
+        for (int p = 0; p < MAX_PLAYERS; p++) {
+            draw_single_character(&state->players[p], &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
+        }
+
+        // C. Render active AI monsters inside this quadrant window context
+        for (int e = 0; e < MAX_ENEMIES; e++) {
+            draw_single_character(&state->enemies[e], &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
+        }
+
+        current_viewport_slot++;
     }
+
+      // =========================================================================
+    // --- THE HUD PASS (PLACED LAST) ---
+    // =========================================================================
+    // CRITICAL STEP: Reset the N64 hardware scissor to open full-screen bounds (320x240).
+    // If you don't do this, the UI elements drawn for Player 3 or 4 will be completely 
+    // cut off and invisible on screen!
+    rdpq_set_scissor(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    
+    // Configure your transparency and standard rendering modes for user interfaces
+    rdpq_set_mode_standard(); 
+    rdpq_mode_alphacompare(1);
+
+    // Call your HUD method here!
+    draw_hud(state);
 }
 
-void draw_single_character(const character *chr) {
+void draw_single_character(const character *chr, const camera_t *active_cam, int off_x, int off_y, int view_w, int view_h) {
     if (!chr || !(chr->meta.state & ACTIVE)) return;
 
-    // Calculate rounded screen positions
-    int screen_x = (int)(chr->x + 0.5f) - camera.x;
-    int screen_y = (int)(chr->y + 0.5f) - camera.y;
+      // =========================================================================
+    // --- ADDED: MULTI-VIEWPORT INDEPENDENT INVINCIBILITY FLICKER ---
+    // =========================================================================
+    // If the character is a player experiencing active invincibility frames, 
+    // skip drawing on alternating frames to create a crisp flashing effect.
+    // Changing the modulo values lets you fine-tune the blink speed.
+    if (!chr->meta.is_enemy && chr->meta.invincibility_frames > 0) {
+        if (chr->meta.invincibility_frames % 4 < 2) {
+            return; // Skip drawing ONLY this character instance on this viewport pass!
+        }
+    }
+    
+    // 1. Calculate base screen space positions relative to this camera context
+    int screen_x = (int)(chr->x + 0.5f) - active_cam->x;
+    int screen_y = (int)(chr->y + 0.5f) - active_cam->y;
 
-    // =========================================================================
-    // --- UPDATED CULLING: Safely handles multi-scaled entity boxes ---
-    // =========================================================================
-    if (screen_x + chr->meta.width < 0 || screen_x > SCREEN_WIDTH ||
-        screen_y + chr->meta.height < 0 || screen_y > SCREEN_HEIGHT) {
+    // 2. Adjust coordinates by adding the physical viewport anchors on the TV layout
+    screen_x += off_x;
+    screen_y += off_y;
+
+    // Viewport Window Culling: Only draw if inside this quadrant's frame bounds
+    if (screen_x + chr->meta.width < off_x  || screen_x > off_x + view_w ||
+        screen_y + chr->meta.height < off_y || screen_y > off_y + view_h) {
         return; 
     }
 
-    // Safely pull the correct pre-loaded sheet based on this character's type enum
     sprite_t *sheet = character_sprites[chr->meta.type];
     if (!sheet) return;
 
-    // =========================================================================
-    // --- DYNAMIC HARDWARE SCALING FACTOR CALCULATION ---
-    // =========================================================================
-    // Base asset dimensions baked directly into your binary image headers
+    // Scale calculation factoring asset bounds
     float asset_width  = (float)sheet->width;
     float asset_height = (float)sheet->height;
-
-    // Calculate the hardware scale multiplier ratio (Target size / Source asset size)
-    // If a 16x32 asset needs to fill a 16x16 Goomba boundary, scale_y drops to 0.5f!
     float dynamic_scale_x = (float)chr->meta.width  / asset_width;
     float dynamic_scale_y = (float)chr->meta.height / asset_height;
 
-    // // Flip horizontal mapping scaling factor if the character turns left
     // if (chr->physics.facing_direction == FACING_LEFT) {
-    //     dynamic_scale_x = -dynamic_scale_x; // Libdragon flips textures via negative scales!
+    //     dynamic_scale_x = -dynamic_scale_x;
     // }
 
     rdpq_blitparms_t parms = {
-        .s0 = 0,
-        .t0 = 0,
-        .width  = sheet->width,   // Read the FULL asset bounds from the sheet
-        .height = sheet->height,  // Read the FULL asset bounds from the sheet
-        
-        // Pass our calculated multipliers straight to the N64 Reality Coprocessor!
+        .s0 = 0, .t0 = 0,
+        .width  = sheet->width,
+        .height = sheet->height,
+        .cx = sheet->width / 2.0f,
         .scale_x = dynamic_scale_x,
         .scale_y = dynamic_scale_y,
     };
 
-    // Configure standard transparency pipelines
-    rdpq_set_mode_standard(); 
-    rdpq_mode_alphacompare(1); 
-
-    // Render the dynamically scaled sprite via RDP
     rdpq_sprite_blit(sheet, screen_x, screen_y, &parms);
 }
 
-void draw_level(level_t *level) {
+void draw_map_tiles(const level_t *level, const camera_t *active_cam, int off_x, int off_y, int view_w, int view_h) {
     if (!level || !level_tilesheet) return;
 
     // 1. MUST use standard mode for CI4 (Copy mode cannot parse palettes)
@@ -120,10 +158,16 @@ void draw_level(level_t *level) {
     rdpq_mode_tlut(TLUT_RGBA16);
     rdpq_tex_upload_tlut(sprite_get_palette(level_tilesheet), 0, 16);
 
-    int start_x = camera.x / TILE_SIZE;
-    int start_y = camera.y / TILE_SIZE;
-    int end_x = (camera.x + SCREEN_WIDTH) / TILE_SIZE + 1;
-    int end_y = (camera.y + SCREEN_HEIGHT) / TILE_SIZE + 1;
+    // =========================================================================
+    // --- UPDATED: CALCULATE GRIDS DYNAMICALLY PER VIEWPORT PERSPECTIVE ---
+    // =========================================================================
+    // Replaced global "camera" loops with the incoming explicit viewport boundaries!
+    int start_x = active_cam->x / TILE_SIZE;
+    int start_y = active_cam->y / TILE_SIZE;
+    
+    // We add 2 to bounds padding to prevent flashing gaps at screen borders when scrolling fast
+    int end_x = (active_cam->x + view_w) / TILE_SIZE + 2;
+    int end_y = (active_cam->y + view_h) / TILE_SIZE + 2;
 
     for (int y = start_y; y < end_y; y++) {
         for (int x = start_x; x < end_x; x++) {
@@ -132,16 +176,29 @@ void draw_level(level_t *level) {
             }
 
             uint8_t tile_id = level->map_data[y * MAP_WIDTH + x];
-            if (tile_id == 0) continue; // Assuming 0 is empty/air
+            if (tile_id == 0) continue; 
 
             int tile_index = tile_id - 1;
             int tile_x = (tile_index % level_tilesheet->hslices) * TILE_SIZE;
             int tile_y = (tile_index / level_tilesheet->hslices) * TILE_SIZE;
 
-            int screen_x = x * TILE_SIZE - camera.x;
-            int screen_y = y * TILE_SIZE - camera.y;
+            // =========================================================================
+            // --- UPDATED: APPLY VIEWPORT POSITION SHIFTS AND BOUNDARY CULLING ---
+            // =========================================================================
+            // A. Calculate screen position matching this camera perspective
+            int screen_x = x * TILE_SIZE - active_cam->x;
+            int screen_y = y * TILE_SIZE - active_cam->y;
 
-            // 3. Define the source rectangle coordinates within the level_tilesheet
+            // B. Add the viewport offsets to snap tiles directly into the correct quadrant cell
+            screen_x += off_x;
+            screen_y += off_y;
+
+            // C. Strict Viewport Culling: Skip drawing if tile coordinates bleed out of this quadrant box frame
+            if (screen_x + TILE_SIZE < off_x  || screen_x > off_x + view_w ||
+                screen_y + TILE_SIZE < off_y || screen_y > off_y + view_h) {
+                continue;
+            }
+
             rdpq_blitparms_t parms = {
                 .s0 = tile_x,
                 .t0 = tile_y,
@@ -149,7 +206,7 @@ void draw_level(level_t *level) {
                 .height = TILE_SIZE,
             };
 
-            // 4. Blit directly from the main level_tilesheet sprite using the parameters
+            // Blit directly to the hardware scissored quadrant box matrix
             rdpq_sprite_blit(level_tilesheet, screen_x, screen_y, &parms);
         }
     }

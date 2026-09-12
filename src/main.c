@@ -4,7 +4,7 @@
 #include "camera.h"
 #include <libdragon.h>
 
-camera_t camera;
+extern camera_t cameras[MAX_VIEWPORTS];
 
 float calculate_delta_time(unsigned long long *last_ticks);
 
@@ -15,7 +15,6 @@ int main(void) {
     renderer_init();
     timer_init();
     engine_init(&state);    
-    camera_init(&camera, MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT, state.level.spawn_x, state.level.spawn_y);
 
     load_stage_by_index(&state, 0); 
 
@@ -41,22 +40,42 @@ int main(void) {
         // 4. Run your game logic updates
         engine_update(&state, dt);
 
-        // 5. Gather tracking data and apply sub-pixel rounding to prevent the ground-glitch
-        int cam_x[MAX_PLAYERS];
-        int cam_y[MAX_PLAYERS];
-        int cam_w[MAX_PLAYERS];
-        int cam_h[MAX_PLAYERS];
-        bool cam_active[MAX_PLAYERS];
-
+        // =========================================================================
+        // 5. GATHER TRACKING DATA & UPDATE DECOUPLED VIEWP_CONFIG CAMERAS
+        // =========================================================================
+        
+        // Count how many players are currently alive in the match
+        int active_count = 0;
         for (int i = 0; i < MAX_PLAYERS; i++) {
-            cam_x[i]      = (int)state.players[i].x;
-            cam_y[i]      = (int)state.players[i].y;
-            cam_w[i]      = state.players[i].meta.width;
-            cam_h[i]      = state.players[i].meta.height;
-            cam_active[i] = (state.players[i].meta.state & ACTIVE) != 0; // Fixed bitwise verification flag
+            if (state.players[i].meta.state & ACTIVE) active_count++;
         }
 
-        camera_update(&camera, cam_x, cam_y, cam_w, cam_h, cam_active, MAX_PLAYERS, dt);
+        if (active_count > 0) {
+            int config_idx = active_count - 1; // Map 1-4 players to layout config rows 0-3
+            int current_viewport_slot = 0;
+
+            for (int i = 0; i < MAX_PLAYERS; i++) {
+                // If a player slot is inactive, skip it completely!
+                if (!(state.players[i].meta.state & ACTIVE)) continue;
+
+                // Look up what screen dimensions this specific quadrant/split should look like
+                viewport_layout_t layout = viewport_configs[config_idx][current_viewport_slot];
+                
+                // Track this player's camera completely independently of the other slots!
+                camera_update_split(
+                    &cameras[i],                // Pass this specific player index camera instance
+                    (int)state.players[i].x,     // Target player exact position vectors
+                    (int)state.players[i].y,
+                    state.players[i].meta.width, 
+                    state.players[i].meta.height,
+                    layout.width,               // Pass dynamic viewport screen constraints
+                    layout.height, 
+                    dt
+                );
+
+                current_viewport_slot++;
+            }
+        }
 
         // 6. Draw your scene passing down the valid locked pointer
         renderer_draw(disp, &state); 

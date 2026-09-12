@@ -22,6 +22,11 @@ typedef enum {
 } character_type;
 
 typedef enum {
+    FACING_RIGHT = 0,
+    FACING_LEFT  = 1
+} facing_dir;
+
+typedef enum {
     PHYSICS_NONE        =  0,
     GROUNDED    =  1 << 0, 
     MOVING_LEFT = 1 << 1, 
@@ -55,7 +60,7 @@ typedef struct {
     float vx, vy;            // Velocity X and Y
     float ax, ay;            // Acceleration X and Y
     physics_state state;
-
+    facing_dir facing_direction;
     // Movement Constants (Configurable limits)
     float max_speed, turn_multiplier;
     float ground_acceleration, air_acceleration;

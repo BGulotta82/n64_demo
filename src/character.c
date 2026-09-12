@@ -106,6 +106,7 @@ void character_init(character *character, character_type type, bool is_enemy) {
     character->physics.gravity_scale = (2.0f * physics_constants[physics_index][6]) / (physics_constants[physics_index][7] * physics_constants[physics_index][7]);
     character->physics.jump_force = -(2.0f * physics_constants[physics_index][6]) / physics_constants[physics_index][7];
     character->physics.state = PHYSICS_NONE;
+    character->physics.facing_direction = FACING_LEFT;
 }
 
 void character_update(character *self, character *players, input_state *input, uint8_t *map_data, float dt) {
@@ -185,6 +186,7 @@ void handle_move_left(character *character, input_state *input, float dt)
     {
         character->physics.state |= MOVING_LEFT;
         character->physics.state &= ~MOVING_RGHT;
+        character->physics.facing_direction = FACING_LEFT; 
 
         // Choose acceleration based on ground vs air status
         float current_accel = (character->physics.state & GROUNDED || character->meta.state & SUPPORTED_BY_PLAYER) 
@@ -216,6 +218,7 @@ void handle_move_right(character *character, input_state *input, float dt)
     {
         character->physics.state |= MOVING_RGHT;
         character->physics.state &= ~MOVING_LEFT;
+        character->physics.facing_direction = FACING_RIGHT; 
 
         // Choose acceleration based on ground vs air status
         float current_accel = (character->physics.state & GROUNDED || character->meta.state & SUPPORTED_BY_PLAYER) 

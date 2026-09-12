@@ -47,25 +47,41 @@ void camera_init(camera_t *cam, int world_width, int world_height, int screen_wi
     cam->y = desired_y;
 }
 
-void camera_update_split(camera_t *cam, int p_x, int p_y, int p_w, int p_h, int view_w, int view_h, float dt) {
-    // 1. Assign current frame width/height to camera metrics
+void camera_update_split(camera_t *cam, int p_x, int p_y, int p_w, int p_h, int view_w, int view_h, facing_dir direction, float dt) {
     cam->width = view_w;
     cam->height = view_h;
 
-    // 2. Calculate the target destination centered exactly over this specific player
+    // 1. Calculate the standard dead-center baseline focal point
     int desired_x = p_x + (p_w / 2) - (view_w / 2);
     int desired_y = p_y + (p_h / 2) - (view_h / 2);
 
-    // 3. Enforce absolute level boundaries
+    // =========================================================================
+    // --- THE VISUAL EXTENSION FIX: FORWARD-FACING FOCUS OFFSET ---
+    // =========================================================================
+    // Look 48 pixels ahead of the player's current trajectory path line.
+    // If your viewports are small (like the 160px wide quad grid), we scale 
+    // the offset down to 24 pixels so the camera doesn't jump too wildly.
+    float dynamic_bias = (view_w <= 160) ? 24.0f : 48.0f;
+
+    if (direction == FACING_LEFT) {
+        desired_x -= (int)dynamic_bias; // Shift camera left to show what's ahead on the left
+    } else if (direction == FACING_RIGHT) {
+        desired_x += (int)dynamic_bias; // Shift camera right to show what's ahead on the right
+    }
+
+    // 2. Enforce absolute level boundaries safely
     if (desired_x < 0) desired_x = 0;
     if (desired_x + view_w > cam->world_width)  desired_x = cam->world_width - view_w;
     if (desired_y < 0) desired_y = 0;
     if (desired_y + view_h > cam->world_height) desired_y = cam->world_height - view_h;
 
-    // 4. Smoothly glide this camera toward its target
+    // 3. Smoothly glide this camera toward its target
     int error_x = desired_x - cam->x;
     int error_y = desired_y - cam->y;
-    float tracking_speed = 6.0f;
+    
+    // We drop the tracking speed slightly (from 6.0 to 4.5) to give the camera 
+    // a beautifully organic trailing "ease-in" effect when changing directions.
+    float tracking_speed = 4.5f;
 
     cam->x += (int)((float)error_x * tracking_speed * dt);
     cam->y += (int)((float)error_y * tracking_speed * dt);

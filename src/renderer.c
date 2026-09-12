@@ -30,8 +30,26 @@ void renderer_draw(surface_t *disp, const game_state_t *state) {
     // Attach the RDP queue directly to the locked surface
     rdpq_attach_clear(disp, NULL);
 
-    draw_dynamic_split_screen(state);
+    if (state->match_state == STATE_WAITING_TO_START) {
+        // Render a large dark box over the center of the viewport screen
+        rdpq_set_mode_fill(RGBA32(0x00, 0x00, 0x00, 200));
+        rdpq_fill_rectangle(30, 90, 290, 150); // Elongated slightly to fit two lines
 
+        // (Blinks every 30 frames at 60 FPS (~0.5 seconds))
+        if (state->frame % 60 < 30) {            
+            // Render a large dark box over the center of the viewport screen
+            rdpq_set_mode_fill(RGBA32(0xFF, 0xFF, 0xFF, 200));
+            rdpq_fill_rectangle(30, 90, 290, 150); // Elongated slightly to fit two lines
+            
+            rdpq_set_mode_standard();
+            // Line 1: Primary Status
+            rdpq_text_printf(NULL, 1, 120, 114, "PRESS START");
+
+        }        
+    }
+
+    draw_dynamic_split_screen(state);
+    
     // Detach and flip cleanly at the next VSync interval
     rdpq_detach_show();
 }
@@ -108,7 +126,7 @@ void draw_single_character(const character *chr, const camera_t *active_cam, int
             return; // Skip drawing ONLY this character instance on this viewport pass!
         }
     }
-    
+
     // 1. Calculate base screen space positions relative to this camera context
     int screen_x = (int)(chr->x + 0.5f) - active_cam->x;
     int screen_y = (int)(chr->y + 0.5f) - active_cam->y;
@@ -221,53 +239,61 @@ void draw_hud(const game_state_t *state) {
     rdpq_set_mode_standard();
 
     // =========================================================================
-    // A. LEFT SIDE: Individual Player Hits Left
+    // A. LEFT SIDE: Players 1 & 2 (Anchored before center text blocks)
     // =========================================================================
-    int horizontal_offset = 8;
-    for (int i = 0; i < MAX_PLAYERS; i++) {
+    int left_offset = 8;
+    for (int i = 0; i < 2; i++) {
         if (!(state->players[i].meta.state & ACTIVE)) continue;
 
         char player_string[16]; 
         sprintf(player_string, "P%d:%d", i + 1, state->players[i].meta.health);
 
-        rdpq_text_printf(NULL, 1, horizontal_offset, 14, player_string);
-        horizontal_offset += 45; 
+        rdpq_text_printf(NULL, 1, left_offset, 14, player_string);
+        left_offset += 45; // P1 at 8px, P2 at 53px max
     }
 
     // =========================================================================
-    // B. CENTER SCREEN: Enemy Counter & Countdown Timer
+    // B. CENTER SCREEN: Enemy Counter & Countdown Timer (Shifted for spacing)
     // =========================================================================
     char center_string[32];
     int time_int = (int)state->level_timer;
     if (time_int < 0) time_int = 0;
 
-    sprintf(center_string, "ENEMIES:%02d | %03d", state->total_enemies_left, time_int);
-    rdpq_text_printf(NULL, 1, 140, 14, center_string);
+    sprintf(center_string, "FOES:%02d | %03d", state->total_enemies_left, time_int);
+    // Adjusted from 140 down to 105 to center perfectly inside the safe gap channel
+    rdpq_text_printf(NULL, 1, 105, 14, center_string);
 
     // =========================================================================
-    // C. MASTER STATE TEXT OVERLAYS & CONTROLLER PROMPTS (THE ADDITION)
+    // C. RIGHT SIDE: Players 3 & 4 (Anchored safely past center text channel)
+    // =========================================================================
+    int right_offset = 224; 
+    for (int i = 2; i < MAX_PLAYERS; i++) {
+        if (!(state->players[i].meta.state & ACTIVE)) continue;
+
+        char player_string[16]; 
+        sprintf(player_string, "P%d:%d", i + 1, state->players[i].meta.health);
+
+        rdpq_text_printf(NULL, 1, right_offset, 14, player_string);
+        right_offset += 45; // P3 at 224px, P4 at 269px
+    }
+
+    // =========================================================================
+    // D. MASTER STATE TEXT OVERLAYS & CONTROLLER PROMPTS
     // =========================================================================
     if (state->match_state == STATE_GAME_OVER) {
-        // Render a large dark box over the center of the viewport screen
         rdpq_set_mode_fill(RGBA32(0x00, 0x00, 0x00, 200));
-        rdpq_fill_rectangle(30, 90, 290, 150); // Elongated slightly to fit two lines
+        rdpq_fill_rectangle(30, 90, 290, 150); 
         
         rdpq_set_mode_standard();
-        // Line 1: Primary Status
         rdpq_text_printf(NULL, 1, 120, 114, "GAME OVER");
-        // Line 2: Interactivity Menu prompt (Centered on 320px screen width)
         rdpq_text_printf(NULL, 1, 68, 134, "PRESS START TO RETRY STAGE");
     } 
     else if (state->match_state == STATE_LEVEL_CLEARED) {
-        // Render a green tinted victory box overlay
         rdpq_set_mode_fill(RGBA32(0x10, 0x40, 0x10, 200));
         rdpq_fill_rectangle(30, 90, 290, 150);
         
         rdpq_set_mode_standard();
-        // Line 1: Primary Status
         rdpq_text_printf(NULL, 1, 108, 114, "STAGE CLEARED!");
-        // Line 2: Interactivity Menu prompt
         rdpq_text_printf(NULL, 1, 64, 134, "PRESS START FOR NEXT STAGE");
     }
 }
-

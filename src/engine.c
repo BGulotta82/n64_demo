@@ -120,16 +120,30 @@ void engine_update(game_state_t *state, float dt) {
     // This evaluates modifications over clean, locked positions
     check_pve_combat(state);
 
-    if (state->match_state == STATE_PLAYING && !player_spawned) {
+    if (state->match_state == STATE_PLAYING) {
         
-        // Only trigger a victory if enemies were counted as 0 AND players actually exist on screen
-        if (state->total_enemies_left == 0 && active_players > 0) {
-            state->match_state = STATE_LEVEL_CLEARED;
-        }
-        // Trigger a defeat if time runs out OR if all drop-in players have completely died out
-        else if (state->level_timer <= 0.0f || active_players == 0) {
-            state->level_timer = 0.0f; // Clamp clock visual
+        // --- TIMEOUT PRIORITY GATE (LIFTED OUTSIDE OF SPAWN CHECKS) ---
+        // If the clock drops to zero or below, freeze the clock and force a hard DEFEAT state immediately.
+        if (state->level_timer <= 0.001f) {
+            state->level_timer = 0.0f; // Clamp clock visual for your draw_hud string
             state->match_state = STATE_GAME_OVER;
+        }        
+        // --- SURVIVOR OR SPONTANEOUS DROP-IN CONDITION TRACKING ---
+        // Only evaluate standard field tracking flags if a player isn't in mid-spawn transition
+        else if (!player_spawned) {
+            // Trigger a victory if all enemies are dead and active players are present on screen
+            if (state->total_enemies_left == 0 && active_players > 0) {
+                state->match_state = STATE_LEVEL_CLEARED;
+            }
+            // Trigger a defeat if all drop-in players have completely run out of lives and died
+            else if (active_players == 0) {
+                state->match_state = STATE_GAME_OVER;
+            }
+        }
+        // Fallback: If players died while someone was spawning, but the timer is safe, 
+        // the drop-in player preserves the match lifecycle cleanly.
+        else if (active_players == 0 && player_spawned) {
+            // Keep state playing so the new player drops down from the sky smoothly!
         }
     }
 

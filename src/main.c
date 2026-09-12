@@ -70,6 +70,7 @@ int main(void) {
                     state.players[i].meta.height,
                     layout.width,               // Pass dynamic viewport screen constraints
                     layout.height, 
+                    state.players[i].physics.facing_direction,
                     dt
                 );
 

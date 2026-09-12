@@ -68,10 +68,12 @@ void character_init(character *character, character_type type, bool is_enemy) {
     character->meta.current_anim = 0;
     character->meta.is_enemy = is_enemy;
     character->meta.current_anim = ANIM_IDLE;
+    character->physics.facing_direction = FACING_LEFT;
 
     if (!is_enemy) {
         character->meta.width = PLAYER_WIDTH;
         character->meta.height = PLAYER_HEIGHT;
+        character->physics.facing_direction = FACING_RIGHT;
     }
 
     switch(type) {
@@ -124,7 +126,6 @@ void character_init(character *character, character_type type, bool is_enemy) {
     character->physics.gravity_scale = (2.0f * physics_constants[physics_index][6]) / (physics_constants[physics_index][7] * physics_constants[physics_index][7]);
     character->physics.jump_force = -(2.0f * physics_constants[physics_index][6]) / physics_constants[physics_index][7];
     character->physics.state = PHYSICS_NONE;
-    character->physics.facing_direction = FACING_LEFT;
 }
 
 void character_update(character *self, character *players, input_state *input, uint8_t *map_data, float dt) {

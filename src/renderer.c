@@ -12,16 +12,17 @@ sprite_t* character_sprites[NUMBER_OF_CHARACTER_TYPES][NUMBER_OF_ANIMATION_STATE
 typedef struct {
     int offset_x;  // Manual pixel adjustment: positive moves right, negative moves left
     int offset_y;  // Manual pixel adjustment: positive moves down, negative moves up
+    float flip_offset_correction;
 } visual_layout_t;
 
 static const visual_layout_t character_visual_configs[] = {
     // Increasing offset_y to 8 will push his visual feet down flush with the platform
-    [KNIGHT]   = { .offset_x = 7, .offset_y = 16 }, 
-    [ELF]      = { .offset_x = 10, .offset_y = 2 }, 
-    [WIZARD]   = { .offset_x = 10, .offset_y = 2 }, 
-    [DWARF]    = { .offset_x = 10, .offset_y = 2 }, 
-    [GOOMBA]   = { .offset_x = 10, .offset_y = 2 }, 
-    [SKELETON] = { .offset_x = 10, .offset_y = 2 }  
+    [KNIGHT]   = { .offset_x = 4, .offset_y = 16, .flip_offset_correction =  2.0f }, 
+    [ELF]      = { .offset_x = 10, .offset_y = 2,  .flip_offset_correction = 0.0f }, 
+    [WIZARD]   = { .offset_x = 10, .offset_y = 2,  .flip_offset_correction = 0.0f }, 
+    [DWARF]    = { .offset_x = 10, .offset_y = 2,  .flip_offset_correction = 0.0f }, 
+    [GOOMBA]   = { .offset_x = 10, .offset_y = 2,  .flip_offset_correction = 0.0f }, 
+    [SKELETON] = { .offset_x = 10, .offset_y = 2,  .flip_offset_correction = 0.0f }  
 };
 
 void renderer_init(void) {
@@ -235,15 +236,28 @@ void draw_single_character(const character *chr, const camera_t *active_cam, int
 
     int tex_src_x = visual_frame * tile_dim;
 
+    float flip_scale_x = 1.0f;
+    float center_x = (float)tile_dim / 2.0f;
+    float center_y = (float)tile_dim / 2.0f;
+
+    // Adjust the RDP transformation anchor if mirrored to sync with hitbox
+    if (chr->physics.facing_direction == FACING_LEFT) {
+        flip_scale_x = -1.0f; 
+        
+      // Dynamically pull the custom pixel correction factor for this character type
+        center_x += ((float)vis->offset_x * 2.0f) + vis->flip_offset_correction; 
+     }
+
     rdpq_blitparms_t parms = {
         .s0 = tex_src_x,              
         .t0 = 0,                      
         .width  = tile_dim,           
         .height = tile_dim,           
         
-        // Pivot point matches the exact geometric center of the cell
-        .cx = (float)tile_dim / 2.0f, 
-        .cy = (float)tile_dim / 2.0f, 
+        .scale_x = flip_scale_x,      // Flips the sprite when negative
+        
+        .cx = center_x,               // Adjusted center axis for correct mirroring
+        .cy = center_y,               
     };
     
     rdpq_set_mode_standard(); // Configures the RDP blender for sprite layers

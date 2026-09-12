@@ -134,30 +134,30 @@ void draw_dynamic_split_screen(const game_state_t *state) {
         int cam_x_floor = (int)floorf(cameras[i].x);
         int cam_y_floor = (int)floorf(cameras[i].y);
 
-    // Draw Map Tiles using stabilized tile space constraints
-    draw_map_tiles(&state->level, &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
+        // Draw Map Tiles using stabilized tile space constraints
+        draw_map_tiles(&state->level, &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
 
-    // =========================================================================
-    // --- RENDER PLAYERS ---
-    // =========================================================================
-    for (int p = 0; p < MAX_PLAYERS; p++) {
-        // Draw the player's visual sprite
-        draw_single_character(&state->players[p], &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
-        
-        // Draw the player's matching physical hitbox (Bright Green)
-        debug_draw_character_hitbox(&state->players[p], &cameras[i], layout.screen_x, layout.screen_y, 0x00FF00FF);
-    }
+        // =========================================================================
+        // --- RENDER PLAYERS ---
+        // =========================================================================
+        for (int p = 0; p < MAX_PLAYERS; p++) {
+            // Draw the player's visual sprite
+            draw_single_character(&state->players[p], &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
+            
+            // Draw the player's matching physical hitbox (Bright Green)
+            debug_draw_character_hitbox(&state->players[p], &cameras[i], layout.screen_x, layout.screen_y, 0x00FF00FF);
+        }
 
-    // =========================================================================
-    // --- RENDER AI MONSTERS ---
-    // =========================================================================
-    for (int e = 0; e < MAX_ENEMIES; e++) {
-        // Draw the enemy's visual sprite
-        draw_single_character(&state->enemies[e], &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
-        
-        // Draw the enemy's matching physical hitbox (Bright Red for clear visibility)
-        debug_draw_character_hitbox(&state->enemies[e], &cameras[i], layout.screen_x, layout.screen_y, 0xFF0000FF);
-    }
+        // =========================================================================
+        // --- RENDER AI MONSTERS ---
+        // =========================================================================
+        for (int e = 0; e < MAX_ENEMIES; e++) {
+            // Draw the enemy's visual sprite
+            draw_single_character(&state->enemies[e], &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
+            
+            // Draw the enemy's matching physical hitbox (Bright Red for clear visibility)
+            debug_draw_character_hitbox(&state->enemies[e], &cameras[i], layout.screen_x, layout.screen_y, 0xFF0000FF);
+        }
 
         current_viewport_slot++;
     }

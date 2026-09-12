@@ -15,14 +15,37 @@ typedef struct {
     float flip_offset_correction;
 } visual_layout_t;
 
-static const visual_layout_t character_visual_configs[] = {
-    // Increasing offset_y to 8 will push his visual feet down flush with the platform
-    [KNIGHT]   = { .offset_x = 4, .offset_y = 16, .flip_offset_correction =  2.0f }, 
-    [ELF]      = { .offset_x = 10, .offset_y = 2,  .flip_offset_correction = 0.0f }, 
-    [WIZARD]   = { .offset_x = 10, .offset_y = 2,  .flip_offset_correction = 0.0f }, 
-    [DWARF]    = { .offset_x = 10, .offset_y = 2,  .flip_offset_correction = 0.0f }, 
-    [GOOMBA]   = { .offset_x = 10, .offset_y = 2,  .flip_offset_correction = 0.0f }, 
-    [SKELETON] = { .offset_x = 10, .offset_y = 2,  .flip_offset_correction = 0.0f }  
+static const visual_layout_t character_visual_configs[NUMBER_OF_CHARACTER_TYPES][NUMBER_OF_ANIMATION_STATES] = {
+    [KNIGHT] = {
+        [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
+        [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
+        [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
+    },
+    [ELF] = {
+        [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
+        [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
+        [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
+    },
+    [WIZARD] = {
+        [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
+        [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
+        [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
+    },
+    [DWARF] = {
+        [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
+        [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
+        [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
+    },
+    [GOOMBA] = {
+        [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
+        [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
+        [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
+    },
+    [SKELETON] = {
+        [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
+        [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
+        [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
+    }
 };
 
 void renderer_init(void) {
@@ -214,8 +237,9 @@ void draw_single_character(const character *chr, const camera_t *active_cam, int
     // =========================================================================
     // --- EXPLICIT DATA-DRIVEN MANUAL PIXEL OFFSETS ---
     // =========================================================================
-    const visual_layout_t *vis = &character_visual_configs[chr->meta.type];
-    
+ // NEW: Fetch using both type and current animation state
+    const visual_layout_t *vis = &character_visual_configs[chr->meta.type][chr->meta.current_anim];
+
     screen_x += vis->offset_x;
     screen_y += vis->offset_y;
 

@@ -20,7 +20,7 @@ visual_layout_t character_visuals[NUMBER_OF_CHARACTER_TYPES][NUMBER_OF_ANIMATION
         [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
         [ANIM_WALK]   = { .offset_x = 8,  .offset_y = 16, .flip_offset_correction = -14.0f }, // Lean forward slightly
         [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
-        [ANIM_JUMP] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }
+        [ANIM_JUMP] = {   .offset_x = 8,    .offset_y = 16, .flip_offset_correction = -15.0f }
     },
     [ELF] = {
         [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
@@ -65,6 +65,7 @@ void renderer_init(void) {
     character_visuals[KNIGHT][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
     character_visuals[KNIGHT][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
     character_visuals[KNIGHT][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[KNIGHT][ANIM_JUMP].sprite_sheet   = sprite_load("rom:/knight-jump.sprite");
     character_visuals[ELF][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
     character_visuals[ELF][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
     character_visuals[ELF][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");

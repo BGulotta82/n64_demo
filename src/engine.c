@@ -585,6 +585,9 @@ void update_character_animation_state(character *self) {
     anim_state_t previous_anim = self->meta.current_anim;
     bool process_time_based_ticker = true;
 
+    // Is the character truly resting on something solid? (World tile OR a teammate)
+    bool is_on_solid_surface = (self->physics.state & GROUNDED) || (self->meta.state & SUPPORTED_BY_PLAYER);
+
     // =========================================================================
     // PHASE 1: EVALUATE & CHOOSE STATE
     // =========================================================================
@@ -593,41 +596,39 @@ void update_character_animation_state(character *self) {
     if (self->meta.current_anim == ANIM_ATTACK) {
         const anim_config_t *atk_cfg = &character_anims[ANIM_ATTACK];
         if (self->meta.current_frame_index < atk_cfg->frame_count - 1) {
-            // Keep looping the attack; skip running remaining state checks this frame
             process_time_based_ticker = true; 
         } else {
-            // Attack loop finished, allow standard states to evaluate this frame
-            self->meta.current_anim = (self->physics.state & GROUNDED) ? ANIM_IDLE : ANIM_JUMP;
+            // Attack loop finished, switch to appropriate rest state
+            self->meta.current_anim = is_on_solid_surface ? ANIM_IDLE : ANIM_JUMP;
         }
     }
     
-    // 2. Air states take priority if not currently locked in an attack sequence
-    if (self->meta.current_anim != ANIM_ATTACK && !(self->physics.state & GROUNDED)) {
+    // 2. Air states run ONLY if we are floating completely in mid-air
+    if (self->meta.current_anim != ANIM_ATTACK && !is_on_solid_surface) {
         self->meta.current_anim = ANIM_JUMP;
         float vy = self->physics.vy;
 
         if (vy < prof->jump_fast_up_threshold) {
-            self->meta.current_frame_index = 0; // Frame 1
+            self->meta.current_frame_index = 0;
         } 
         else if (vy < prof->jump_slow_up_threshold) {
-            self->meta.current_frame_index = 1; // Frame 2
+            self->meta.current_frame_index = 1;
         } 
         else if (vy >= -prof->apex_threshold && vy <= prof->apex_threshold) {
-            self->meta.current_frame_index = 2; // Frame 3 (Apex)
+            self->meta.current_frame_index = 2;
         } 
         else if (vy <= prof->fall_slow_down_threshold) {
-            self->meta.current_frame_index = 3; // Frame 4
+            self->meta.current_frame_index = 3;
         } 
         else {
-            self->meta.current_frame_index = 4; // Frame 5
+            self->meta.current_frame_index = 4;
         }
         
-        // Disable time tickers because air frames are driven explicitly by velocity!
         self->meta.anim_timer = 0;
         process_time_based_ticker = false;
     }
     
-    // 3. Ground states run if not locked in an attack sequence
+    // 3. Ground states (Idle or Walk) run if resting safely on world tiles OR on a teammate
     else if (self->meta.current_anim != ANIM_ATTACK) {
         if (fabsf(self->physics.vx) > prof->walk_deadzone) {
             self->meta.current_anim = ANIM_WALK;
@@ -636,7 +637,7 @@ void update_character_animation_state(character *self) {
         }
     }
 
-    // State Transition Reset: If our state changed this frame, restart our counters cleanly
+    // State Transition Reset
     if (self->meta.current_anim != previous_anim) {
         self->meta.anim_timer = 0;
         self->meta.current_frame_index = 0;

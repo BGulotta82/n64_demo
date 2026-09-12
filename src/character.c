@@ -127,7 +127,6 @@ void character_init(character *character, character_type type, bool is_enemy) {
 void character_update(character *self, character *players, input_state *input, uint8_t *map_data, float dt) {
     if (!self || !input || !(self->meta.state & ACTIVE)) return;
 
-    // Reset player-grounding flag before checking collisions this frame
     bool was_supported_by_player = self->meta.state & SUPPORTED_BY_PLAYER;
     self->meta.state &= ~SUPPORTED_BY_PLAYER;
 
@@ -138,30 +137,61 @@ void character_update(character *self, character *players, input_state *input, u
 
     apply_gravity(self, dt);
     
-    // --- X Axis ---
+    // =========================================================================
+    // STEP 1: RESOLVE ALL X-AXIS MOVEMENT FIRST
+    // =========================================================================
+    // Move by your own input velocity
     self->x += self->physics.vx * dt;
+
+    // Carry teammate momentum across the X axis BEFORE testing wall limits
+    if (was_supported_by_player) {
+        // Find the player we were standing on last frame to inherit velocity safely
+        for (int i = 0; i < MAX_PLAYERS; i++) {
+            character *other = &players[i];
+            if (other != self && (other->meta.state & ACTIVE)) {
+                // Check if we are still safely aligned vertically above them
+                if (self->x < other->x + (float)other->meta.width &&
+                    self->x + (float)self->meta.width > other->x) {
+                    self->x += other->physics.vx * dt;
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Clamp to walls after all physical X translations are fully completed
     check_wall_collision(self, map_data);
 
-    // --- Y Axis ---
+    // =========================================================================
+    // STEP 2: RESOLVE ALL Y-AXIS MOVEMENT
+    // =========================================================================
     self->y += self->physics.vy * dt;
     check_ceiling_collision(self, map_data);
-    check_grounded(self, map_data); // Sets GROUNDED if touching solid world map tiles
+    
+    // Clear grounding state to build it fresh from geometry checks
+    self->physics.state &= ~GROUNDED;
+    check_grounded(self, map_data); 
 
-    // --- Dynamic Inter-character Collisions ---
-    // If we aren't touching world tiles, this might re-apply GROUNDED if we land on a player
+    // =========================================================================
+    // STEP 3: RESOLVE INTER-CHARACTER RESOLUTION
+    // =========================================================================
+    // Modified check_character_collisions must NO LONGER inject "self->x += other->physics.vx * dt;"
     check_character_collisions(self, players, dt); 
 
-    // --- CRITICAL COYOTE FIX ---
-    // If we were standing on a player last frame, but we aren't standing on a player 
-    // OR a world tile this frame, strip the GROUNDED flag so we fall instantly.
+    // =========================================================================
+    // STEP 4: CLEAN UP COYOTE STATE
+    // =========================================================================
     if (!(self->physics.state & GROUNDED) && !(self->meta.state & SUPPORTED_BY_PLAYER) && was_supported_by_player) {
-         self->physics.state &= ~GROUNDED;
+        self->physics.state &= ~GROUNDED;
+        // If they just slipped off a player, make sure they start falling naturally
+        if (self->physics.vy < 0.0f) self->physics.vy = 0.0f; 
     }
 
     if (self->meta.invincibility_frames > 0) {
         self->meta.invincibility_frames--;
     }
 }
+
 
 float approach(float current, float target, float step) {
     if (fabsf(target - current) <= step) {
@@ -381,20 +411,25 @@ void check_grounded(character *character, uint8_t *map_data)
 void check_character_collisions(character *self, character *players, float dt) {
     if (!self || !players) return;
 
+    // A tiny padding value to protect against floating point inaccuracy
+    const float EPSILON = 0.05f;
+
     for (int i = 0; i < MAX_PLAYERS; i++) {
         character *other = &players[i];
         if (other == self || !(other->meta.state & ACTIVE)) continue;
 
-        // FIXED: Multi-player collision overlapping checks use independent meta widths/heights
-        if (self->x < other->x + (float)other->meta.width &&
-            self->x + (float)self->meta.width > other->x &&
-            self->y < other->y + (float)other->meta.height &&
-            self->y + (float)self->meta.height > other->y) {
+        // FIXED: Changed boundaries to inclusive (<= and >=) with a tiny EPSILON buffer 
+        // to ensure touching/overlapping borders capture the collision state correctly
+        if (self->x <= other->x + (float)other->meta.width + EPSILON &&
+            self->x + (float)self->meta.width >= other->x - EPSILON &&
+            self->y <= other->y + (float)other->meta.height + EPSILON &&
+            self->y + (float)self->meta.height >= other->y - EPSILON) {
 
             float overlap_x = fminf(self->x + (float)self->meta.width - other->x, other->x + (float)other->meta.width - self->x);
             float overlap_y = fminf(self->y + (float)self->meta.height - other->y, other->y + (float)other->meta.height - self->y);
 
-            if (overlap_x < overlap_y) {
+            // Prevent vertical jitter from accidentally choosing X axis correction
+            if (overlap_x < (overlap_y - EPSILON)) {
                 if (self->x < other->x) {
                     self->x -= overlap_x;
                 } else {
@@ -402,18 +437,24 @@ void check_character_collisions(character *self, character *players, float dt) {
                 }
                 self->physics.vx = 0.0f;
             } else {
-                if (self->y < other->y && self->physics.vy >= 0.0f) {
-                    // FIXED: Snapping to teammate shoulders pulls from local meta height definitions
+                // Standing on top of a player
+                if (self->y <= other->y && self->physics.vy >= -EPSILON) {
+                    
+                    // Snap position perfectly
                     self->y = other->y - (float)self->meta.height;
                     
-                    self->x += other->physics.vx * dt; 
+                    // Keep teammate momentum drift out of this box resolution stage
+                    // self->x += other->physics.vx * dt; // Handled in update loop stage now
                     
                     self->physics.vy = 0.0f;
-                    self->physics.state |= GROUNDED;
+                    
+                    // Explicitly strip JUMPING/FALLING statuses so state machine matches
+                    self->physics.state &= ~JUMPING;
+                    self->physics.state |= GROUNDED;                    
                     self->meta.state |= SUPPORTED_BY_PLAYER; 
                     self->meta.coyote_frames = COYOTE_MAX;
                 } else if (self->y > other->y && self->physics.vy < 0.0f) {
-                    // FIXED: Head bump displacement pulls from teammate's unique height profile
+                    // Head bump displacement
                     self->y = other->y + (float)other->meta.height;
                     self->physics.vy = 0.0f;
                 }

@@ -130,10 +130,6 @@ void draw_dynamic_split_screen(const game_state_t *state) {
         // --- N64 HARDWARE SCISSOR WINDOW GATE ---
         rdpq_set_scissor(layout.screen_x, layout.screen_y, layout.screen_x + layout.width, layout.screen_y + layout.height);
 
-            // Explicit floor-casts prevent fractional alignment offsets
-        int cam_x_floor = (int)floorf(cameras[i].x);
-        int cam_y_floor = (int)floorf(cameras[i].y);
-
         // Draw Map Tiles using stabilized tile space constraints
         draw_map_tiles(&state->level, &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
 
@@ -167,6 +163,43 @@ void draw_dynamic_split_screen(const game_state_t *state) {
     rdpq_set_mode_standard(); 
     rdpq_mode_alphacompare(1);
     draw_hud(state);
+
+    if (state->players[0].meta.state & ACTIVE) {
+        debug_render_character_telemetry(&state->players[0], 16.0f, 20.0f);
+    }
+}
+
+void debug_render_character_telemetry(const character *c, float x, float y) {
+    if (!c) return;
+
+    char msg[512];
+    snprintf(msg, sizeof(msg),
+        "--- %s TELEMETRY ---\n"
+        "Pos:   X:%.2f  Y:%.2f\n"
+        "State: %d  |  Type: %d\n"
+        "Vel:   VX:%.2f  VY:%.2f\n"
+        "Acc:   AX:%.2f  AY:%.2f\n"
+        "Phys State: %d  |  Dir: %d\n"
+        "HP:    %d  |  Is Enemy: %s\n"
+        "Coyote: %d |  Jump Buf: %d\n"
+        "Invinc: %d |  AI Cool: %d\n"
+        "Anim:  St:%d  Frm:%d (Idx:%d)\n"
+        "Timer: %d",
+        c->meta.is_enemy ? "ENEMY" : "PLAYER",
+        c->x, c->y,
+        c->meta.state, c->meta.type,
+        c->physics.vx, c->physics.vy,
+        c->physics.ax, c->physics.ay,
+        c->physics.state, c->physics.facing_direction,
+        c->meta.health, c->meta.is_enemy ? "YES" : "NO",
+        c->meta.coyote_frames, c->meta.jump_buffer_frames,
+        c->meta.invincibility_frames, c->meta.ai_jump_cooldown,
+        c->meta.current_anim, c->meta.current_frame, c->meta.current_frame_index,
+        c->meta.anim_timer
+    );
+
+    // Modern rdpq_text rendering cleanly parses multi-line (\n) text strings
+    rdpq_text_print(NULL, 1, x, y, msg);
 }
 
 void debug_draw_character_hitbox(const character *chr, const camera_t *active_cam, int off_x, int off_y, uint32_t color_rgba) {

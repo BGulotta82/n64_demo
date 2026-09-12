@@ -12,12 +12,12 @@ typedef struct {
 } viewport_layout_t;
 
 typedef struct {
-    int x;
-    int y;
-    int width;
-    int height;
-    int world_width;
-    int world_height;
+    float x;
+    float y;
+    float width;
+    float height;
+    float world_width;
+    float world_height;
 } camera_t;
 
 extern viewport_layout_t viewport_configs[4][4]; // Declare its shape, but do not assign values here!
@@ -25,7 +25,7 @@ extern viewport_layout_t viewport_configs[4][4]; // Declare its shape, but do no
 // Your other prototypes
 extern camera_t cameras[4];
 
-void camera_init(camera_t *cam, int world_width, int world_height, int screen_width, int screen_height, float spawn_x, float spawn_y);
-void camera_update_split(camera_t *cam, int p_x, int p_y, int p_w, int p_h, int view_w, int view_h, facing_dir direction, float dt);
+void camera_init(camera_t *cam, float world_width, float world_height, float screen_width, float screen_height, float spawn_x, float spawn_y);
+void camera_update_split(camera_t *cam, float p_x, float p_y, float p_w, float p_h, float view_w, float view_h, facing_dir direction, float dt);
 
 #endif

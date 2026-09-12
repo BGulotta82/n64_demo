@@ -64,12 +64,12 @@ int main(void) {
                 // Track this player's camera completely independently of the other slots!
                 camera_update_split(
                     &cameras[i],                // Pass this specific player index camera instance
-                    (int)state.players[i].x,     // Target player exact position vectors
-                    (int)state.players[i].y,
-                    state.players[i].meta.width, 
-                    state.players[i].meta.height,
-                    layout.width,               // Pass dynamic viewport screen constraints
-                    layout.height, 
+                    state.players[i].x,     // Target player exact position vectors
+                    state.players[i].y,
+                    (float)state.players[i].meta.width, 
+                    (float)state.players[i].meta.height,
+                    (float)layout.width,               // Pass dynamic viewport screen constraints
+                    (float)layout.height, 
                     state.players[i].physics.facing_direction,
                     dt
                 );

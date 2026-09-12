@@ -55,7 +55,7 @@ void renderer_draw(surface_t *disp, const game_state_t *state) {
 }
 
 void draw_dynamic_split_screen(const game_state_t *state) {
-    // 1. Count current live player stats
+    // Determine the viewport configuration layout structure safely
     int active_count = 0;
     for (int i = 0; i < MAX_PLAYERS; i++) {
         if (state->players[i].meta.state & ACTIVE) active_count++;
@@ -63,32 +63,33 @@ void draw_dynamic_split_screen(const game_state_t *state) {
 
     if (active_count == 0) return;
 
-    int config_idx = active_count - 1; // Match layout index row (0 to 3)
+    int config_idx = active_count - 1; 
     int current_viewport_slot = 0;
 
-    // 2. Loop over player structures to draw active viewports
+    // Loop through ALL camera profiles sequentially to render screens reliably
     for (int i = 0; i < MAX_PLAYERS; i++) {
+        // Only skip rendering if the profile is truly unallocated,
+        // but decouple player survival states from structural loop limits.
         if (!(state->players[i].meta.state & ACTIVE)) continue;
 
-        // Fetch our dynamic screen dimension layout boundary configurations
         viewport_layout_t layout = viewport_configs[config_idx][current_viewport_slot];
 
-        // =========================================================================
         // --- N64 HARDWARE SCISSOR WINDOW GATE ---
-        // =========================================================================
-        // Constrain drawing operations tightly to this quadrant block
         rdpq_set_scissor(layout.screen_x, layout.screen_y, layout.screen_x + layout.width, layout.screen_y + layout.height);
 
-        // A. Draw Background Map Map geometry from this specific camera slot view
-        // Ensure your tile engine calculates views using cameras[i] and factors layout offsets!
+        // Explicit floor-casts prevent fractional alignment offsets
+        int cam_x_floor = (int)floorf(cameras[i].x);
+        int cam_y_floor = (int)floorf(cameras[i].y);
+
+        // Draw Map Tiles using stabilized tile space constraints
         draw_map_tiles(&state->level, &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
 
-        // B. Render overlapping active characters inside this quadrant window context
+        // Render Characters
         for (int p = 0; p < MAX_PLAYERS; p++) {
             draw_single_character(&state->players[p], &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
         }
 
-        // C. Render active AI monsters inside this quadrant window context
+        // Render AI Monsters
         for (int e = 0; e < MAX_ENEMIES; e++) {
             draw_single_character(&state->enemies[e], &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
         }
@@ -96,40 +97,37 @@ void draw_dynamic_split_screen(const game_state_t *state) {
         current_viewport_slot++;
     }
 
-      // =========================================================================
-    // --- THE HUD PASS (PLACED LAST) ---
-    // =========================================================================
-    // CRITICAL STEP: Reset the N64 hardware scissor to open full-screen bounds (320x240).
-    // If you don't do this, the UI elements drawn for Player 3 or 4 will be completely 
-    // cut off and invisible on screen!
+    // Reset scissor to full-screen limits safely
     rdpq_set_scissor(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-    
-    // Configure your transparency and standard rendering modes for user interfaces
     rdpq_set_mode_standard(); 
     rdpq_mode_alphacompare(1);
-
-    // Call your HUD method here!
     draw_hud(state);
 }
 
 void draw_single_character(const character *chr, const camera_t *active_cam, int off_x, int off_y, int view_w, int view_h) {
     if (!chr || !(chr->meta.state & ACTIVE)) return;
 
-      // =========================================================================
-    // --- ADDED: MULTI-VIEWPORT INDEPENDENT INVINCIBILITY FLICKER ---
     // =========================================================================
-    // If the character is a player experiencing active invincibility frames, 
-    // skip drawing on alternating frames to create a crisp flashing effect.
-    // Changing the modulo values lets you fine-tune the blink speed.
+    // --- MULTI-VIEWPORT INDEPENDENT INVINCIBILITY FLICKER ---
+    // =========================================================================
     if (!chr->meta.is_enemy && chr->meta.invincibility_frames > 0) {
         if (chr->meta.invincibility_frames % 4 < 2) {
-            return; // Skip drawing ONLY this character instance on this viewport pass!
+            return; 
         }
     }
 
-    // 1. Calculate base screen space positions relative to this camera context
-    int screen_x = (int)(chr->x + 0.5f) - active_cam->x;
-    int screen_y = (int)(chr->y + 0.5f) - active_cam->y;
+    // =========================================================================
+    // --- FIXED: MATCHED FLOORED COORDINATE SHIFTS ---
+    // =========================================================================
+    // Extract consistent integer floor definitions for both world entities and camera perspectives
+    int cam_x_floor = (int)floorf(active_cam->x);
+    int cam_y_floor = (int)floorf(active_cam->y);
+    int chr_x_floor = (int)floorf(chr->x);
+    int chr_y_floor = (int)floorf(chr->y);
+
+    // Calculate base screen space positions relative to this stabilized camera context
+    int screen_x = chr_x_floor - cam_x_floor;
+    int screen_y = chr_y_floor - cam_y_floor;
 
     // 2. Adjust coordinates by adding the physical viewport anchors on the TV layout
     screen_x += off_x;
@@ -150,6 +148,7 @@ void draw_single_character(const character *chr, const camera_t *active_cam, int
     float dynamic_scale_x = (float)chr->meta.width  / asset_width;
     float dynamic_scale_y = (float)chr->meta.height / asset_height;
 
+    // Optional flip logic (Uncomment if needed, it works perfectly with the new math!)
     // if (chr->physics.facing_direction == FACING_LEFT) {
     //     dynamic_scale_x = -dynamic_scale_x;
     // }
@@ -158,7 +157,8 @@ void draw_single_character(const character *chr, const camera_t *active_cam, int
         .s0 = 0, .t0 = 0,
         .width  = sheet->width,
         .height = sheet->height,
-        .cx = sheet->width / 2.0f,
+        // Center of rotation/scale pivot matches half width precisely
+        .cx = asset_width / 2.0f, 
         .scale_x = dynamic_scale_x,
         .scale_y = dynamic_scale_y,
     };
@@ -169,30 +169,28 @@ void draw_single_character(const character *chr, const camera_t *active_cam, int
 void draw_map_tiles(const level_t *level, const camera_t *active_cam, int off_x, int off_y, int view_w, int view_h) {
     if (!level || !level_tilesheet) return;
 
-    // 1. MUST use standard mode for CI4 (Copy mode cannot parse palettes)
     rdpq_set_mode_standard();
-    
-    // 2. Configure the Texture Lookup Table and upload the palette
     rdpq_mode_tlut(TLUT_RGBA16);
     rdpq_tex_upload_tlut(sprite_get_palette(level_tilesheet), 0, 16);
 
-    // =========================================================================
-    // --- UPDATED: CALCULATE GRIDS DYNAMICALLY PER VIEWPORT PERSPECTIVE ---
-    // =========================================================================
-    // Replaced global "camera" loops with the incoming explicit viewport boundaries!
-    int start_x = active_cam->x / TILE_SIZE;
-    int start_y = active_cam->y / TILE_SIZE;
+    // 1. Explicitly use floorf to convert the camera floats safely to tile tracking indices
+    int cam_x_floor = (int)floorf(active_cam->x);
+    int cam_y_floor = (int)floorf(active_cam->y);
+
+    int start_x = cam_x_floor / TILE_SIZE;
+    int start_y = cam_y_floor / TILE_SIZE;
     
-    // We add 2 to bounds padding to prevent flashing gaps at screen borders when scrolling fast
-    int end_x = (active_cam->x + view_w) / TILE_SIZE + 2;
-    int end_y = (active_cam->y + view_h) / TILE_SIZE + 2;
+    int end_x = (int)floorf(active_cam->x + (float)view_w) / TILE_SIZE + 2;
+    int end_y = (int)floorf(active_cam->y + (float)view_h) / TILE_SIZE + 2;
+
+    // Safety clamps on map constraints to prevent off-boundary array reads
+    if (start_x < 0) start_x = 0;
+    if (start_y < 0) start_y = 0;
+    if (end_x > MAP_WIDTH)  end_x = MAP_WIDTH;
+    if (end_y > MAP_HEIGHT) end_y = MAP_HEIGHT;
 
     for (int y = start_y; y < end_y; y++) {
         for (int x = start_x; x < end_x; x++) {
-            if (x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT) {
-                continue;
-            }
-
             uint8_t tile_id = level->map_data[y * MAP_WIDTH + x];
             if (tile_id == 0) continue; 
 
@@ -201,17 +199,18 @@ void draw_map_tiles(const level_t *level, const camera_t *active_cam, int off_x,
             int tile_y = (tile_index / level_tilesheet->hslices) * TILE_SIZE;
 
             // =========================================================================
-            // --- UPDATED: APPLY VIEWPORT POSITION SHIFTS AND BOUNDARY CULLING ---
+            // --- FIXED: APPLY CALCULATED FLOOR VALUES TO SCREEN SPACE SHIFTS ---
             // =========================================================================
-            // A. Calculate screen position matching this camera perspective
-            int screen_x = x * TILE_SIZE - active_cam->x;
-            int screen_y = y * TILE_SIZE - active_cam->y;
+            // Use the pre-calculated floor positions instead of subtracting raw floats.
+            // This prevents subpixel truncation drift on the N64 rasterizer.
+            int screen_x = (x * TILE_SIZE) - cam_x_floor;
+            int screen_y = (y * TILE_SIZE) - cam_y_floor;
 
-            // B. Add the viewport offsets to snap tiles directly into the correct quadrant cell
+            // Add physical viewport offsets to position tiles into the correct quadrant cell
             screen_x += off_x;
             screen_y += off_y;
 
-            // C. Strict Viewport Culling: Skip drawing if tile coordinates bleed out of this quadrant box frame
+            // Strict Viewport Culling
             if (screen_x + TILE_SIZE < off_x  || screen_x > off_x + view_w ||
                 screen_y + TILE_SIZE < off_y || screen_y > off_y + view_h) {
                 continue;

@@ -222,23 +222,17 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
     if (!(enemy->meta.state & ACTIVE) || !enemy->meta.is_enemy) return;
 
     // =========================================================================
-    // 1. DYNAMIC MULTI-VIEWPORT CHECK (Enforced across all active cameras)
+    // 1. FIXED MULTI-VIEWPORT CHECK (Decoupled from live player life status)
     // =========================================================================
-    // First, count how many players/viewports are currently active in the match
-    int active_viewports = 0;
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (state->players[i].meta.state & ACTIVE) active_viewports++;
-    }
-    
-    // Default fallback check safety gate
-    if (active_viewports == 0) active_viewports = 1;
-
     bool visible_in_any_viewport = false;
     float buffer = 32.0f; 
 
-    // Scan every active camera footprint to look for this enemy
-    for (int v = 0; v < active_viewports; v++) {
-        // Read directly out of your global cameras configuration array
+    // ALWAYS scan through all physical cameras up to MAX_PLAYERS.
+    // Do NOT stop scanning a camera viewport just because its player died!
+    for (int v = 0; v < MAX_PLAYERS; v++) {
+        // If your camera system has a structural flag for active screens (e.g. split screen active)
+        // check it here. Otherwise, let it read the persistent layout data.
+        
         float cam_left   = (float)cameras[v].x;
         float cam_right  = (float)(cameras[v].x + cameras[v].width);
         float cam_top    = (float)cameras[v].y;
@@ -252,7 +246,7 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
         }
     }
 
-    // If completely hidden across all active player windows, drop simulation tasks
+    // If completely hidden across all active layout windows, drop simulation tasks
     if (!visible_in_any_viewport) {
         enemy->meta.state &= ~SPAWNED; 
         return; 
@@ -404,7 +398,7 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
     }
 
     // =========================================================================
-    // 9. COMMIT FINAL ACTIONS TO DUMMY INPUT REGISTER
+    // 9. FIXED TYPO & COMMIT FINAL ACTIONS TO DUMMY INPUT REGISTER
     // =========================================================================
     if (wants_move_right) dummy_input->active_actions |= ACTION_MOVE_RIGHT;
     if (wants_move_left)  dummy_input->active_actions |= ACTION_MOVE_LEFT;
@@ -611,10 +605,10 @@ void load_stage_by_index(game_state_t *state, int index) {
     for (int v = 0; v < MAX_VIEWPORTS; v++) {
         camera_init(
             &cameras[v],                  // Pass the address of this specific camera element
-            MAP_WIDTH * TILE_SIZE,        // World map bounds metrics
-            MAP_HEIGHT * TILE_SIZE, 
-            SCREEN_WIDTH,                 // Full screen window dimensions as baseline seed
-            SCREEN_HEIGHT, 
+            (float)(MAP_WIDTH * TILE_SIZE),        // World map bounds metrics
+            (float)(MAP_HEIGHT * TILE_SIZE), 
+            (float)SCREEN_WIDTH,                 // Full screen window dimensions as baseline seed
+            (float)SCREEN_HEIGHT, 
             state->level.spawn_x,         // Safe spawn origin values
             state->level.spawn_y
         );

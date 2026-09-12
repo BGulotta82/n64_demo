@@ -13,12 +13,12 @@
 extern float physics_constants[NUMBER_OF_CHARACTER_TYPES][9];
 
 typedef enum {
-    KNIGHT      = 1,
-    ELF         = 2,
-    WIZARD      = 3,
-    DWARF       = 4,
-    GOOMBA      = 5,
-    SKELETON    = 6
+    KNIGHT      = 0,
+    ELF         = 1,
+    WIZARD      = 2,
+    DWARF       = 3,
+    GOOMBA      = 4,
+    SKELETON    = 5
 } character_type;
 
 typedef enum {
@@ -41,16 +41,26 @@ typedef enum {
     SUPPORTED_BY_PLAYER = 1 << 2  
 } character_state;
 
+typedef enum {
+    ANIM_IDLE,
+    ANIM_WALK,
+    ANIM_ATTACK,
+    NUMBER_OF_ANIMATION_STATES
+} anim_state_t;
+
 typedef struct {
     int coyote_frames;       // Time allowed to jump AFTER leaving a ledge
     int jump_buffer_frames, invincibility_frames;;  // Time to remember a jump press BEFORE touching down
     int health;
-    int frame;
     int ai_home_row;         
     int ai_jump_cooldown;    
     bool is_enemy;
     int width;   
     int height; 
+     int current_frame;    
+    anim_state_t current_anim;  // e.g., ANIM_WALK
+    int anim_timer;             // Ticks passed in current frame
+    int current_frame_index;    // 0, 1, 2, 3... (Abstract frame index)
     character_state state;                
     character_type type;      
 } character_meta;

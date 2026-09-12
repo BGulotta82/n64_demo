@@ -2,11 +2,27 @@
 #include "renderer.h"
 #include "level.h"
 #include "camera.h"
+#include "character.h"
 
 // Global font handle
 extern camera_t cameras[MAX_VIEWPORTS];
 sprite_t* level_tilesheet;
-sprite_t* character_sprites[NUMBER_OF_CHARACTER_TYPES];
+sprite_t* character_sprites[NUMBER_OF_CHARACTER_TYPES][NUMBER_OF_ANIMATION_STATES];
+
+typedef struct {
+    int offset_x;  // Manual pixel adjustment: positive moves right, negative moves left
+    int offset_y;  // Manual pixel adjustment: positive moves down, negative moves up
+} visual_layout_t;
+
+static const visual_layout_t character_visual_configs[] = {
+    // Increasing offset_y to 8 will push his visual feet down flush with the platform
+    [KNIGHT]   = { .offset_x = 7, .offset_y = 16 }, 
+    [ELF]      = { .offset_x = 10, .offset_y = 2 }, 
+    [WIZARD]   = { .offset_x = 10, .offset_y = 2 }, 
+    [DWARF]    = { .offset_x = 10, .offset_y = 2 }, 
+    [GOOMBA]   = { .offset_x = 10, .offset_y = 2 }, 
+    [SKELETON] = { .offset_x = 10, .offset_y = 2 }  
+};
 
 void renderer_init(void) {
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
@@ -16,12 +32,24 @@ void renderer_init(void) {
     rdpq_text_register_font(1, builtin_font);
 
     level_tilesheet  = sprite_load("rom:/tiles.sprite");
-    character_sprites[KNIGHT]   = sprite_load("rom:/knight.sprite");
-    character_sprites[ELF]      = sprite_load("rom:/elf.sprite");
-    character_sprites[WIZARD]   = sprite_load("rom:/wizard.sprite");
-    character_sprites[DWARF]    = sprite_load("rom:/dwarf.sprite");
-    character_sprites[GOOMBA]   = sprite_load("rom:/goomba.sprite");
-    character_sprites[SKELETON] = sprite_load("rom:/skeleton.sprite");    
+    character_sprites[KNIGHT][ANIM_IDLE]   = sprite_load("rom:/knight.sprite");
+    character_sprites[KNIGHT][ANIM_WALK]   = sprite_load("rom:/knight.sprite");
+    character_sprites[KNIGHT][ANIM_ATTACK]   = sprite_load("rom:/knight.sprite");
+    character_sprites[ELF][ANIM_IDLE]   = sprite_load("rom:/elf.sprite");
+    character_sprites[ELF][ANIM_WALK]   = sprite_load("rom:/elf.sprite");
+    character_sprites[ELF][ANIM_ATTACK]   = sprite_load("rom:/elf.sprite");
+    character_sprites[WIZARD][ANIM_IDLE]   = sprite_load("rom:/wizard.sprite");
+    character_sprites[WIZARD][ANIM_WALK]   = sprite_load("rom:/wizard.sprite");
+    character_sprites[WIZARD][ANIM_ATTACK]   = sprite_load("rom:/wizard.sprite");
+    character_sprites[DWARF][ANIM_IDLE]   = sprite_load("rom:/dwarf.sprite");
+    character_sprites[DWARF][ANIM_WALK]   = sprite_load("rom:/dwarf.sprite");
+    character_sprites[DWARF][ANIM_ATTACK]   = sprite_load("rom:/dwarf.sprite");
+    character_sprites[GOOMBA][ANIM_IDLE]   = sprite_load("rom:/goomba.sprite");
+    character_sprites[GOOMBA][ANIM_WALK]   = sprite_load("rom:/goomba.sprite");
+    character_sprites[GOOMBA][ANIM_ATTACK]   = sprite_load("rom:/goomba.sprite");
+    character_sprites[SKELETON][ANIM_IDLE]   = sprite_load("rom:/skeleton.sprite");
+    character_sprites[SKELETON][ANIM_WALK]   = sprite_load("rom:/skeleton.sprite");
+    character_sprites[SKELETON][ANIM_ATTACK]   = sprite_load("rom:/skeleton.sprite");
 }
 
 // Update your function signature to accept surface_t *disp
@@ -77,22 +105,34 @@ void draw_dynamic_split_screen(const game_state_t *state) {
         // --- N64 HARDWARE SCISSOR WINDOW GATE ---
         rdpq_set_scissor(layout.screen_x, layout.screen_y, layout.screen_x + layout.width, layout.screen_y + layout.height);
 
-        // Explicit floor-casts prevent fractional alignment offsets
+            // Explicit floor-casts prevent fractional alignment offsets
         int cam_x_floor = (int)floorf(cameras[i].x);
         int cam_y_floor = (int)floorf(cameras[i].y);
 
-        // Draw Map Tiles using stabilized tile space constraints
-        draw_map_tiles(&state->level, &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
+    // Draw Map Tiles using stabilized tile space constraints
+    draw_map_tiles(&state->level, &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
 
-        // Render Characters
-        for (int p = 0; p < MAX_PLAYERS; p++) {
-            draw_single_character(&state->players[p], &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
-        }
+    // =========================================================================
+    // --- RENDER PLAYERS ---
+    // =========================================================================
+    for (int p = 0; p < MAX_PLAYERS; p++) {
+        // Draw the player's visual sprite
+        draw_single_character(&state->players[p], &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
+        
+        // Draw the player's matching physical hitbox (Bright Green)
+        debug_draw_character_hitbox(&state->players[p], &cameras[i], layout.screen_x, layout.screen_y, 0x00FF00FF);
+    }
 
-        // Render AI Monsters
-        for (int e = 0; e < MAX_ENEMIES; e++) {
-            draw_single_character(&state->enemies[e], &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
-        }
+    // =========================================================================
+    // --- RENDER AI MONSTERS ---
+    // =========================================================================
+    for (int e = 0; e < MAX_ENEMIES; e++) {
+        // Draw the enemy's visual sprite
+        draw_single_character(&state->enemies[e], &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
+        
+        // Draw the enemy's matching physical hitbox (Bright Red for clear visibility)
+        debug_draw_character_hitbox(&state->enemies[e], &cameras[i], layout.screen_x, layout.screen_y, 0xFF0000FF);
+    }
 
         current_viewport_slot++;
     }
@@ -102,6 +142,43 @@ void draw_dynamic_split_screen(const game_state_t *state) {
     rdpq_set_mode_standard(); 
     rdpq_mode_alphacompare(1);
     draw_hud(state);
+}
+
+void debug_draw_character_hitbox(const character *chr, const camera_t *active_cam, int off_x, int off_y, uint32_t color_rgba) {
+    if (!chr || !(chr->meta.state & ACTIVE)) return;
+
+    // 1. Calculate the exact screen space position using the same floored camera math
+    int cam_x_floor = (int)floorf(active_cam->x);
+    int cam_y_floor = (int)floorf(active_cam->y);
+    int chr_x_floor = (int)floorf(chr->x);
+    int chr_y_floor = (int)floorf(chr->y);
+
+    int screen_x = chr_x_floor - cam_x_floor + off_x;
+    int screen_y = chr_y_floor - cam_y_floor + off_y;
+
+    // 2. Extract the physical bounds directly from the character's physics meta data
+    int x1 = screen_x;
+    int y1 = screen_y;
+    int x2 = screen_x + chr->meta.width;
+    int y2 = screen_y + chr->meta.height;
+
+    // 3. Configure the N64 RDP Blitter to draw primitive outlines
+    rdpq_set_mode_fill(RGBA32(
+        (color_rgba >> 24) & 0xFF,
+        (color_rgba >> 16) & 0xFF,
+        (color_rgba >> 8)  & 0xFF,
+        color_rgba         & 0xFF
+    ));
+
+    // Draw the 4 edges of the box using lines or tight fills
+    // Top Edge
+    rdpq_fill_rectangle(x1, y1, x2, y1 + 1);
+    // Bottom Edge
+    rdpq_fill_rectangle(x1, y2 - 1, x2, y2);
+    // Left Edge
+    rdpq_fill_rectangle(x1, y1, x1 + 1, y2);
+    // Right Edge
+    rdpq_fill_rectangle(x2 - 1, y1, x2, y2);
 }
 
 void draw_single_character(const character *chr, const camera_t *active_cam, int off_x, int off_y, int view_w, int view_h) {
@@ -117,53 +194,62 @@ void draw_single_character(const character *chr, const camera_t *active_cam, int
     }
 
     // =========================================================================
-    // --- FIXED: MATCHED FLOORED COORDINATE SHIFTS ---
+    // --- FLOORED COORDINATE SHIFTS & SCREEN POSITIONING ---
     // =========================================================================
-    // Extract consistent integer floor definitions for both world entities and camera perspectives
     int cam_x_floor = (int)floorf(active_cam->x);
     int cam_y_floor = (int)floorf(active_cam->y);
     int chr_x_floor = (int)floorf(chr->x);
     int chr_y_floor = (int)floorf(chr->y);
 
-    // Calculate base screen space positions relative to this stabilized camera context
-    int screen_x = chr_x_floor - cam_x_floor;
-    int screen_y = chr_y_floor - cam_y_floor;
+    int screen_x = chr_x_floor - cam_x_floor + off_x;
+    int screen_y = chr_y_floor - cam_y_floor + off_y;
 
-    // 2. Adjust coordinates by adding the physical viewport anchors on the TV layout
-    screen_x += off_x;
-    screen_y += off_y;
+    // Fetch the active sprite asset sheet
+    sprite_t *sheet = character_sprites[chr->meta.type][chr->meta.current_anim];
+    if (!sheet) return;
 
-    // Viewport Window Culling: Only draw if inside this quadrant's frame bounds
-    if (screen_x + chr->meta.width < off_x  || screen_x > off_x + view_w ||
-        screen_y + chr->meta.height < off_y || screen_y > off_y + view_h) {
+    int tile_dim = sheet->height; // Returns cell dimensions (e.g., 32)
+
+    // =========================================================================
+    // --- EXPLICIT DATA-DRIVEN MANUAL PIXEL OFFSETS ---
+    // =========================================================================
+    const visual_layout_t *vis = &character_visual_configs[chr->meta.type];
+    
+    screen_x += vis->offset_x;
+    screen_y += vis->offset_y;
+
+    // =========================================================================
+
+    // Dynamic Viewport Window Culling using our adjusted base coordinates
+    if (screen_x + tile_dim < off_x  || screen_x > off_x + view_w ||
+        screen_y + tile_dim < off_y || screen_y > off_y + view_h) {
         return; 
     }
 
-    sprite_t *sheet = character_sprites[chr->meta.type];
-    if (!sheet) return;
+    // Safety checks for frame bounds to protect TMEM boundaries
+    int max_sheet_frames = sheet->width / tile_dim;
+    int visual_frame = chr->meta.current_frame_index;
+    if (visual_frame >= max_sheet_frames || visual_frame < 0) {
+        visual_frame = 0;
+    }
 
-    // Scale calculation factoring asset bounds
-    float asset_width  = (float)sheet->width;
-    float asset_height = (float)sheet->height;
-    float dynamic_scale_x = (float)chr->meta.width  / asset_width;
-    float dynamic_scale_y = (float)chr->meta.height / asset_height;
-
-    // Optional flip logic (Uncomment if needed, it works perfectly with the new math!)
-    // if (chr->physics.facing_direction == FACING_LEFT) {
-    //     dynamic_scale_x = -dynamic_scale_x;
-    // }
+    int tex_src_x = visual_frame * tile_dim;
 
     rdpq_blitparms_t parms = {
-        .s0 = 0, .t0 = 0,
-        .width  = sheet->width,
-        .height = sheet->height,
-        // Center of rotation/scale pivot matches half width precisely
-        .cx = asset_width / 2.0f, 
-        .scale_x = dynamic_scale_x,
-        .scale_y = dynamic_scale_y,
+        .s0 = tex_src_x,              
+        .t0 = 0,                      
+        .width  = tile_dim,           
+        .height = tile_dim,           
+        
+        // Pivot point matches the exact geometric center of the cell
+        .cx = (float)tile_dim / 2.0f, 
+        .cy = (float)tile_dim / 2.0f, 
     };
-
-    rdpq_sprite_blit(sheet, screen_x, screen_y, &parms);
+    
+    rdpq_set_mode_standard(); // Configures the RDP blender for sprite layers
+    rdpq_mode_alphacompare(1); // Drops solid background pixels if using a color-key
+    
+    rdpq_sprite_blit(sheet, (float)screen_x, (float)screen_y, &parms);
 }
 
 void draw_map_tiles(const level_t *level, const camera_t *active_cam, int off_x, int off_y, int view_w, int view_h) {

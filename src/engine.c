@@ -157,7 +157,8 @@ void check_new_player_spawn(character *self, character *players, level_t *level,
       !(self->meta.state & ACTIVE) && 
       !(self->meta.state & SPAWNED))
     {
-        character_type type = (rand() % 4) + 1; 
+        //character_type type = (rand() % 4) + 1; 
+        character_type type = KNIGHT; 
 
         character_init(self, type, false);
         self->meta.state |= ACTIVE;
@@ -310,7 +311,7 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
         } else if (enemy->physics.vx < -0.1f) {
             wants_move_left = true;
         } else {
-            wants_move_right = (enemy->meta.frame % 2 == 0); 
+            wants_move_right = (enemy->meta.current_frame % 2 == 0); 
             wants_move_left  = !wants_move_right;
         }
     } 
@@ -457,10 +458,6 @@ void check_pve_combat(game_state_t *state) {
     for (int p = 0; p < MAX_PLAYERS; p++) {
         character *player = &state->players[p];
         if (!(player->meta.state & ACTIVE)) continue;
-
-        if (player->meta.invincibility_frames > 0) {
-            player->meta.invincibility_frames--;
-        }
 
         // --- CLUSTER SHIELD CONFIGURATION ---
         // Cache initial downward speed before evaluation loop alters it dynamically

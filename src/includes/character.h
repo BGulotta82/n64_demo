@@ -18,7 +18,8 @@ typedef enum {
     WIZARD      = 2,
     DWARF       = 3,
     GOOMBA      = 4,
-    SKELETON    = 5
+    SKELETON    = 5,
+    CHARACTER_TYPE_MAX
 } character_type;
 
 typedef enum {
@@ -45,8 +46,17 @@ typedef enum {
     ANIM_IDLE,
     ANIM_WALK,
     ANIM_ATTACK,
+    ANIM_JUMP,
     NUMBER_OF_ANIMATION_STATES
 } anim_state_t;
+
+typedef struct {
+    float jump_fast_up_threshold;   // Velocity below which Frame 1 triggers
+    float jump_slow_up_threshold;   // Velocity below which Frame 2 triggers
+    float apex_threshold;           // Absolute window bounds for Frame 3 (+/-)
+    float fall_slow_down_threshold; // Velocity below which Frame 4 triggers
+    float walk_deadzone;            // Minimum speed threshold to leave IDLE state
+} animation_profile_t;
 
 typedef struct {
     int coyote_frames;       // Time allowed to jump AFTER leaving a ledge
@@ -61,6 +71,7 @@ typedef struct {
     anim_state_t current_anim;  // e.g., ANIM_WALK
     int anim_timer;             // Ticks passed in current frame
     int current_frame_index;    // 0, 1, 2, 3... (Abstract frame index)
+    const animation_profile_t *anim_profile;
     character_state state;                
     character_type type;      
 } character_meta;

@@ -11,6 +11,29 @@ typedef struct {
     float time_limit;
 } stage_config_t;
 
+typedef struct {
+    int frame_count;   // Abstract number of frames in this action
+    int frame_duration;// How many game ticks to hold each frame
+} anim_config_t;
+
+// Define the static constant table mapping parameters directly to the character type index
+const animation_profile_t CHARACTER_ANIMATION_PROFILES[CHARACTER_TYPE_MAX] = {
+    [KNIGHT]   = { -4.0f, -0.5f, 0.5f, 4.0f, 0.1f },
+    [ELF]      = { -5.0f, -0.7f, 0.7f, 5.0f, 0.08f }, // Fast/light archetype adjustments
+    [WIZARD]   = { -3.5f, -0.4f, 0.4f, 3.5f, 0.12f },
+    [DWARF]    = { -2.5f, -0.3f, 0.3f, 2.5f, 0.15f },
+    [GOOMBA]   = { -2.0f, -0.2f, 0.2f, 2.0f, 0.05f },
+    [SKELETON] = { -3.0f, -0.5f, 0.5f, 3.0f, 0.1f }
+};
+
+// Add your complete mapping table to cover all 4 types safely
+static const anim_config_t character_anims[NUMBER_OF_ANIMATION_STATES] = {
+    [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8 },
+    [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6 },
+    [ANIM_ATTACK] = { .frame_count = 12, .frame_duration = 4 },
+    [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0 } // Duration 0: Velocity handles this explicitly
+};
+
 // Define your static level playlist mapping parameters
 static const stage_config_t level_playlist[MAX_LEVELS] = {
     { "/level1.bin", 60.0f },
@@ -147,6 +170,25 @@ void engine_update(game_state_t *state, float dt) {
         }
     }
 
+        // =========================================================================
+    // 4. --- UPDATE ANIMATION STATES (PLACE HERE) ---
+    // =========================================================================
+    // At this exact point, all movement, collisions, gravity adjustments, and 
+    // combat knockbacks have locked down. We can now safely read the final positions.
+    
+    // Process all active players
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (state->players[i].meta.state & ACTIVE) {
+            update_character_animation_state(&state->players[i]);
+        }
+    }
+
+    // Process all active enemies
+    for (int i = 0; i < MAX_ENEMIES; i++) {
+        if (state->enemies[i].meta.state & ACTIVE) {
+            update_character_animation_state(&state->enemies[i]);
+        }
+    }
     state->frame++;
 }
 
@@ -534,6 +576,88 @@ void check_pve_combat(game_state_t *state) {
             }
         }
     }
+}
+
+void update_character_animation_state(character *self) {
+    const animation_profile_t *prof = self->meta.anim_profile;
+    if (!prof) prof = &CHARACTER_ANIMATION_PROFILES[KNIGHT];
+
+    anim_state_t previous_anim = self->meta.current_anim;
+    bool process_time_based_ticker = true;
+
+    // =========================================================================
+    // PHASE 1: EVALUATE & CHOOSE STATE
+    // =========================================================================
+    
+    // 1. Attack override takes ultimate priority
+    if (self->meta.current_anim == ANIM_ATTACK) {
+        const anim_config_t *atk_cfg = &character_anims[ANIM_ATTACK];
+        if (self->meta.current_frame_index < atk_cfg->frame_count - 1) {
+            // Keep looping the attack; skip running remaining state checks this frame
+            process_time_based_ticker = true; 
+        } else {
+            // Attack loop finished, allow standard states to evaluate this frame
+            self->meta.current_anim = (self->physics.state & GROUNDED) ? ANIM_IDLE : ANIM_JUMP;
+        }
+    }
+    
+    // 2. Air states take priority if not currently locked in an attack sequence
+    if (self->meta.current_anim != ANIM_ATTACK && !(self->physics.state & GROUNDED)) {
+        self->meta.current_anim = ANIM_JUMP;
+        float vy = self->physics.vy;
+
+        if (vy < prof->jump_fast_up_threshold) {
+            self->meta.current_frame_index = 0; // Frame 1
+        } 
+        else if (vy < prof->jump_slow_up_threshold) {
+            self->meta.current_frame_index = 1; // Frame 2
+        } 
+        else if (vy >= -prof->apex_threshold && vy <= prof->apex_threshold) {
+            self->meta.current_frame_index = 2; // Frame 3 (Apex)
+        } 
+        else if (vy <= prof->fall_slow_down_threshold) {
+            self->meta.current_frame_index = 3; // Frame 4
+        } 
+        else {
+            self->meta.current_frame_index = 4; // Frame 5
+        }
+        
+        // Disable time tickers because air frames are driven explicitly by velocity!
+        self->meta.anim_timer = 0;
+        process_time_based_ticker = false;
+    }
+    
+    // 3. Ground states run if not locked in an attack sequence
+    else if (self->meta.current_anim != ANIM_ATTACK) {
+        if (fabsf(self->physics.vx) > prof->walk_deadzone) {
+            self->meta.current_anim = ANIM_WALK;
+        } else {
+            self->meta.current_anim = ANIM_IDLE;
+        }
+    }
+
+    // State Transition Reset: If our state changed this frame, restart our counters cleanly
+    if (self->meta.current_anim != previous_anim) {
+        self->meta.anim_timer = 0;
+        self->meta.current_frame_index = 0;
+    }
+
+    // =========================================================================
+    // PHASE 2: PROGRESS GROUND ANIMATION TICKERS
+    // =========================================================================
+    if (process_time_based_ticker) {
+        const anim_config_t *cfg = &character_anims[self->meta.current_anim];
+        
+        if (cfg->frame_duration > 0) {
+            self->meta.anim_timer++;
+            if (self->meta.anim_timer >= cfg->frame_duration) {
+                self->meta.anim_timer = 0;
+                self->meta.current_frame_index = (self->meta.current_frame_index + 1) % cfg->frame_count;
+            }
+        }
+    }
+
+    self->meta.current_frame++;
 }
 
 void load_stage_by_index(game_state_t *state, int index) {

@@ -7,44 +7,50 @@
 // Global font handle
 extern camera_t cameras[MAX_VIEWPORTS];
 sprite_t* level_tilesheet;
-sprite_t* character_sprites[NUMBER_OF_CHARACTER_TYPES][NUMBER_OF_ANIMATION_STATES];
 
 typedef struct {
     int offset_x;  // Manual pixel adjustment: positive moves right, negative moves left
     int offset_y;  // Manual pixel adjustment: positive moves down, negative moves up
     float flip_offset_correction;
+    sprite_t* sprite_sheet;
 } visual_layout_t;
 
-static const visual_layout_t character_visual_configs[NUMBER_OF_CHARACTER_TYPES][NUMBER_OF_ANIMATION_STATES] = {
+visual_layout_t character_visuals[NUMBER_OF_CHARACTER_TYPES][NUMBER_OF_ANIMATION_STATES] = {
     [KNIGHT] = {
         [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
-        [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
+        [ANIM_WALK]   = { .offset_x = 8,  .offset_y = 16, .flip_offset_correction = -14.0f }, // Lean forward slightly
         [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
+        [ANIM_JUMP] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }
     },
     [ELF] = {
         [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
         [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
         [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
+        [ANIM_JUMP] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }
     },
     [WIZARD] = {
         [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
         [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
         [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
+        [ANIM_JUMP] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }
     },
     [DWARF] = {
         [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
         [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
         [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
+        [ANIM_JUMP] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }
     },
     [GOOMBA] = {
         [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
         [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
         [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
+        [ANIM_JUMP] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }
     },
     [SKELETON] = {
         [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
         [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
         [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
+        [ANIM_JUMP] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }
     }
 };
 
@@ -56,24 +62,18 @@ void renderer_init(void) {
     rdpq_text_register_font(1, builtin_font);
 
     level_tilesheet  = sprite_load("rom:/tiles.sprite");
-    character_sprites[KNIGHT][ANIM_IDLE]   = sprite_load("rom:/knight.sprite");
-    character_sprites[KNIGHT][ANIM_WALK]   = sprite_load("rom:/knight.sprite");
-    character_sprites[KNIGHT][ANIM_ATTACK]   = sprite_load("rom:/knight.sprite");
-    character_sprites[ELF][ANIM_IDLE]   = sprite_load("rom:/elf.sprite");
-    character_sprites[ELF][ANIM_WALK]   = sprite_load("rom:/elf.sprite");
-    character_sprites[ELF][ANIM_ATTACK]   = sprite_load("rom:/elf.sprite");
-    character_sprites[WIZARD][ANIM_IDLE]   = sprite_load("rom:/wizard.sprite");
-    character_sprites[WIZARD][ANIM_WALK]   = sprite_load("rom:/wizard.sprite");
-    character_sprites[WIZARD][ANIM_ATTACK]   = sprite_load("rom:/wizard.sprite");
-    character_sprites[DWARF][ANIM_IDLE]   = sprite_load("rom:/dwarf.sprite");
-    character_sprites[DWARF][ANIM_WALK]   = sprite_load("rom:/dwarf.sprite");
-    character_sprites[DWARF][ANIM_ATTACK]   = sprite_load("rom:/dwarf.sprite");
-    character_sprites[GOOMBA][ANIM_IDLE]   = sprite_load("rom:/goomba.sprite");
-    character_sprites[GOOMBA][ANIM_WALK]   = sprite_load("rom:/goomba.sprite");
-    character_sprites[GOOMBA][ANIM_ATTACK]   = sprite_load("rom:/goomba.sprite");
-    character_sprites[SKELETON][ANIM_IDLE]   = sprite_load("rom:/skeleton.sprite");
-    character_sprites[SKELETON][ANIM_WALK]   = sprite_load("rom:/skeleton.sprite");
-    character_sprites[SKELETON][ANIM_ATTACK]   = sprite_load("rom:/skeleton.sprite");
+    character_visuals[KNIGHT][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[KNIGHT][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
+    character_visuals[KNIGHT][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[ELF][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[ELF][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
+    character_visuals[ELF][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[WIZARD][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[WIZARD][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
+    character_visuals[WIZARD][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[DWARF][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[DWARF][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
+    character_visuals[DWARF][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
 }
 
 // Update your function signature to accept surface_t *disp
@@ -229,7 +229,7 @@ void draw_single_character(const character *chr, const camera_t *active_cam, int
     int screen_y = chr_y_floor - cam_y_floor + off_y;
 
     // Fetch the active sprite asset sheet
-    sprite_t *sheet = character_sprites[chr->meta.type][chr->meta.current_anim];
+    sprite_t *sheet = character_visuals[chr->meta.type][chr->meta.current_anim].sprite_sheet;
     if (!sheet) return;
 
     int tile_dim = sheet->height; // Returns cell dimensions (e.g., 32)
@@ -238,7 +238,7 @@ void draw_single_character(const character *chr, const camera_t *active_cam, int
     // --- EXPLICIT DATA-DRIVEN MANUAL PIXEL OFFSETS ---
     // =========================================================================
  // NEW: Fetch using both type and current animation state
-    const visual_layout_t *vis = &character_visual_configs[chr->meta.type][chr->meta.current_anim];
+    const visual_layout_t *vis = &character_visuals[chr->meta.type][chr->meta.current_anim];
 
     screen_x += vis->offset_x;
     screen_y += vis->offset_y;

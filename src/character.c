@@ -1,6 +1,8 @@
 #include "character.h"
 #include "level.h"
 
+extern const animation_profile_t CHARACTER_ANIMATION_PROFILES[CHARACTER_TYPE_MAX];
+
 float physics_constants[NUMBER_OF_CHARACTER_TYPES][9]= {
     // Column Guide:
     // 0: Turn Multiplier (Responsiveness when snapping opposite direction)
@@ -40,22 +42,11 @@ float physics_constants[NUMBER_OF_CHARACTER_TYPES][9]= {
     { 2.0f, 42.0f,  210.0f, 800.0f,  175.0f, 150.0f, 18.0f, 0.24f, 320.0f }
 };
 
-typedef struct {
-    int frame_count;   // Abstract number of frames in this action
-    int frame_duration;// How many game ticks to hold each frame
-} anim_config_t;
-
-// A pure data table mapping abstract actions to frame limits
-static const anim_config_t knight_anims[NUMBER_OF_ANIMATION_STATES] = {
-    [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8 },
-    [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6 },
-    [ANIM_ATTACK] = { .frame_count = 12, .frame_duration = 4 },
-};
-
 void character_init(character *character, character_type type, bool is_enemy) {
     if(!character) return;
 
     // init meta
+    character->meta.anim_profile = &CHARACTER_ANIMATION_PROFILES[type];
     character->meta.state = CHARACTER_NONE;
     character->meta.type = type;
     character->meta.coyote_frames = 0;
@@ -101,6 +92,11 @@ void character_init(character *character, character_type type, bool is_enemy) {
             character->meta.width = 14;
             character->meta.height = 28;
         break;
+        default:
+            character->meta.health = 0;
+            character->meta.width = 0;
+            character->meta.height = 0;
+            break;
     }
 
     // init position
@@ -162,22 +158,9 @@ void character_update(character *self, character *players, input_state *input, u
          self->physics.state &= ~GROUNDED;
     }
 
-    // Advance animation abstracts purely mathematically
-    const anim_config_t *cfg = &knight_anims[self->meta.current_anim];
-    
-    self->meta.anim_timer++;
-    if (self->meta.anim_timer >= cfg->frame_duration) {
-        self->meta.anim_timer = 0;
-        
-        // Loop the frame index purely based on our data configuration limits
-        self->meta.current_frame_index = (self->meta.current_frame_index + 1) % cfg->frame_count;
-    }
-
     if (self->meta.invincibility_frames > 0) {
         self->meta.invincibility_frames--;
     }
-
-      self->meta.current_frame++;
 }
 
 float approach(float current, float target, float step) {

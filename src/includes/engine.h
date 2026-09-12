@@ -35,4 +35,5 @@ void check_pve_combat(game_state_t *state);
 void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state *dummy_input, float dt);
 void ai_behavior_skeleton(character *enemy, const character *target, float distance, bool hit_cliff_edge, input_state *dummy_input, bool *move_left, bool *move_right);
 void ai_behavior_goomba(const character *enemy, const character *target, bool *move_left, bool *move_right);
+void update_character_animation_state(character *self);
 #endif // ENGINE_H

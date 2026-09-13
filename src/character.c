@@ -184,7 +184,9 @@ void character_update(character *self, character *players, input_state *input, u
     if (!(self->physics.state & GROUNDED) && !(self->meta.state & SUPPORTED_BY_PLAYER) && was_supported_by_player) {
         self->physics.state &= ~GROUNDED;
         // If they just slipped off a player, make sure they start falling naturally
-        if (self->physics.vy < 0.0f) self->physics.vy = 0.0f; 
+        if (self->physics.vy > 0.0f) {
+            self->physics.vy = 0.0f;
+        } 
     }
 
     if (self->meta.invincibility_frames > 0) {

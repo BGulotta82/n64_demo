@@ -60,7 +60,7 @@ typedef struct {
 
 typedef struct {
     int coyote_frames;       // Time allowed to jump AFTER leaving a ledge
-    int jump_buffer_frames, invincibility_frames;;  // Time to remember a jump press BEFORE touching down
+    int jump_buffer_frames, invincibility_frames;  // Time to remember a jump press BEFORE touching down
     int health;
     int ai_home_row;         
     int ai_jump_cooldown;    

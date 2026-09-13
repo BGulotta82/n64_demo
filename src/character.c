@@ -59,6 +59,9 @@ void character_init(character *character, character_type type, bool is_enemy) {
     character->meta.current_anim = 0;
     character->meta.is_enemy = is_enemy;
     character->meta.current_anim = ANIM_IDLE;
+    character->meta.last_hit_by_attack_id = 0;
+    character->meta.current_attack_id = 1;
+
     character->physics.facing_direction = FACING_LEFT;
 
     if (!is_enemy) {
@@ -134,7 +137,7 @@ void character_update(character *self, character *players, input_state *input, u
     handle_move_left(self, input, dt);
     handle_move_right(self, input, dt);
     handle_jump(self, players, input); 
-
+    handle_attack(self, input);    
     apply_gravity(self, dt);
     
     // =========================================================================
@@ -260,6 +263,16 @@ void handle_move_left(character *character, input_state *input, float dt)
         }
     }
 }
+
+void handle_attack(character *character, input_state *input)
+{
+    // If the attack button is pressed, register the intent to strike
+    if (input->active_actions & ACTION_ATTACK)
+    {
+        character->meta.state |= WANTS_TO_ATTACK;        
+    }
+}
+
 
 void handle_move_right(character *character, input_state *input, float dt)
 {

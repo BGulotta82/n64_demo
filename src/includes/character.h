@@ -39,7 +39,9 @@ typedef enum {
     CHARACTER_NONE        =  0,
     ACTIVE      =  1 << 0, 
     SPAWNED     = 1 << 1,
-    SUPPORTED_BY_PLAYER = 1 << 2  
+    SUPPORTED_BY_PLAYER = 1 << 2,
+    ATTACKING             = 1 << 3,  // 8  
+    WANTS_TO_ATTACK       = 1 << 4 // 16
 } character_state;
 
 typedef enum {
@@ -62,6 +64,8 @@ typedef struct {
     int coyote_frames;       // Time allowed to jump AFTER leaving a ledge
     int jump_buffer_frames, invincibility_frames;  // Time to remember a jump press BEFORE touching down
     int health;
+    int current_attack_id;      // Increment this every time the player presses the attack button
+    int last_hit_by_attack_id;  //
     int ai_home_row;         
     int ai_jump_cooldown;    
     bool is_enemy;
@@ -111,5 +115,6 @@ void handle_move_left(character *character, input_state *input, float dt);
 void handle_move_right(character *character, input_state *input, float dt);
 void move_character(character *character, float dt);
 void handle_jump(character *self, character *players, input_state *input);
+void handle_attack(character *character, input_state *input);
 
  #endif // CHARACTER_H

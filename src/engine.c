@@ -5,17 +5,6 @@
 
 extern camera_t cameras[MAX_VIEWPORTS];
 
-// Group the stage filename and time limit together into a single structure
-typedef struct {
-    const char *filename;
-    float time_limit;
-} stage_config_t;
-
-typedef struct {
-    int frame_count;   // Abstract number of frames in this action
-    int frame_duration;// How many game ticks to hold each frame
-} anim_config_t;
-
 // Define the static constant table mapping parameters directly to the character type index
 const animation_profile_t character_animation_profiles[CHAR_TYPE_MAX] = {
     [KNIGHT]   = { -4.0f, -0.5f, 0.5f, 4.0f, 0.1f },
@@ -27,42 +16,96 @@ const animation_profile_t character_animation_profiles[CHAR_TYPE_MAX] = {
 };
 
 // Add your complete mapping table to cover all 4 types safely
-static const anim_config_t character_anims[CHAR_TYPE_MAX][NUMBER_OF_ANIMATION_STATES] = {
+const anim_config_t character_anims[CHAR_TYPE_MAX][NUMBER_OF_ANIMATION_STATES] = {
     [KNIGHT] = {
-        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8 },
-        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6 },
-        [ANIM_ATTACK] = { .frame_count = 12, .frame_duration = 4 },
-        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0 } // Duration 0: Velocity handles this explicitly
+        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8, .hitbox_start_frame = 0, .hitbox_end_frame = 0 },
+        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
+        [ANIM_ATTACK] = 
+        { 
+            .frame_count = 4, .frame_duration = 3, 
+            .hitbox_start_frame = 2, .hitbox_end_frame = 3,
+            .hitbox = {
+                .style = HITBOX_STYLE_MELEE_SWEEP,
+                .width = 24.0f, .height = 12.0f, // Large sword swipe
+                .offset_x = 18.0f, .offset_y = 8.0f
+            }
+        },
+        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0, .hitbox_start_frame = 0, .hitbox_end_frame = 0  } // Duration 0: Velocity handles this explicitly
     },
     [ELF] = {
-        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8 },
-        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6 },
-        [ANIM_ATTACK] = { .frame_count = 12, .frame_duration = 4 },
-        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0 } // Duration 0: Velocity handles this explicitly
+        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
+        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
+        [ANIM_ATTACK] = 
+        {
+            .frame_count = 12, .frame_duration = 4, 
+            .hitbox_start_frame = 8, .hitbox_end_frame = 8, // Single frame trigger to spawn projectile
+            .hitbox = {
+                .style = HITBOX_STYLE_PROJECTILE,
+                .width = 8.0f, .height = 8.0f, // Small spawning point
+                .offset_x = 24.0f, .offset_y = 4.0f
+            }
+        },        
+        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0, .hitbox_start_frame = 0, .hitbox_end_frame = 0  } // Duration 0: Velocity handles this explicitly
     },
     [WIZARD] = {
-        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8 },
-        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6 },
-        [ANIM_ATTACK] = { .frame_count = 12, .frame_duration = 4 },
-        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0 } // Duration 0: Velocity handles this explicitly
+        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
+        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
+        [ANIM_ATTACK] = 
+        {
+            .frame_count = 12, .frame_duration = 4, 
+            .hitbox_start_frame = 8, .hitbox_end_frame = 8, // Single frame trigger to spawn projectile
+            .hitbox = {
+                .style = HITBOX_STYLE_PROJECTILE,
+                .width = 8.0f, .height = 8.0f, // Small spawning point
+                .offset_x = 24.0f, .offset_y = 4.0f
+            }
+        },        
+        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0, .hitbox_start_frame = 0, .hitbox_end_frame = 0  } // Duration 0: Velocity handles this explicitly
     },
     [DWARF] = {
-        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8 },
-        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6 },
-        [ANIM_ATTACK] = { .frame_count = 12, .frame_duration = 4 },
-        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0 } // Duration 0: Velocity handles this explicitly
+        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
+        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
+        [ANIM_ATTACK] = 
+        { 
+            .frame_count = 12, .frame_duration = 4, 
+            .hitbox_start_frame = 5, .hitbox_end_frame = 8,
+            .hitbox = {
+                .style = HITBOX_STYLE_MELEE_SWEEP,
+                .width = 48.0f, .height = 32.0f, // Large sword swipe
+                .offset_x = 16.0f, .offset_y = 0.0f
+            }
+        },
+        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0, .hitbox_start_frame = 0, .hitbox_end_frame = 0  } // Duration 0: Velocity handles this explicitly
     },
     [GOOMBA] = {
-        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8 },
-        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6 },
-        [ANIM_ATTACK] = { .frame_count = 12, .frame_duration = 4 },
-        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0 } // Duration 0: Velocity handles this explicitly
+        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
+        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
+        [ANIM_ATTACK] = 
+        { 
+            .frame_count = 12, .frame_duration = 4, 
+            .hitbox_start_frame = 3, .hitbox_end_frame = 6,
+            .hitbox = {
+                .style = HITBOX_STYLE_BITE,
+                .width = 16.0f, .height = 16.0f, // Small, tight collision box
+                .offset_x = 4.0f, .offset_y = -2.0f
+            }
+        },
+        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0, .hitbox_start_frame = 0, .hitbox_end_frame = 0  } // Duration 0: Velocity handles this explicitly
     },
     [SKELETON] = {
-        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8 },
-        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6 },
-        [ANIM_ATTACK] = { .frame_count = 12, .frame_duration = 4 },
-        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0 } // Duration 0: Velocity handles this explicitly
+        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
+        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
+        [ANIM_ATTACK] = 
+        { 
+            .frame_count = 12, .frame_duration = 4, 
+            .hitbox_start_frame = 5, .hitbox_end_frame = 8,
+            .hitbox = {
+                .style = HITBOX_STYLE_MELEE_SWEEP,
+                .width = 48.0f, .height = 32.0f, // Large sword swipe
+                .offset_x = 16.0f, .offset_y = 0.0f
+            }
+        },
+        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0, .hitbox_start_frame = 0, .hitbox_end_frame = 0  } // Duration 0: Velocity handles this explicitly
     }
 };
 
@@ -533,83 +576,87 @@ void check_pve_combat(game_state_t *state, float dt) {
         character *player = &state->players[p];
         if (!(player->meta.state & ACTIVE)) continue;
 
-        // Cache initial downward speed before evaluation loop alters it dynamically
-        float initial_frame_vy = player->physics.vy;
-        bool registered_stomp_this_frame = false;
+        // 1. EXTRACT SWORD ATTACK HITBOX
+        rect_t attack_box;
+        bool is_attacking = get_character_secondary_hitbox(player, &attack_box);
 
         for (int e = 0; e < MAX_ENEMIES; e++) {
             character *enemy = &state->enemies[e];
             if (!(enemy->meta.state & ACTIVE)) continue;
 
-            // Round float coordinates to integer bounding boxes for precision checking
-            int p_x = (int)(player->x + 0.5f);
-            int p_y = (int)(player->y + 0.5f);
-            int e_x = (int)(enemy->x + 0.5f);
-            int e_y = (int)(enemy->y + 0.5f);
+            // Define the enemy's hurtbox bounds in world space
+            float e_x1 = enemy->x;
+            float e_y1 = enemy->y;
+            float e_x2 = enemy->x + (float)enemy->meta.width;
+            float e_y2 = enemy->y + (float)enemy->meta.height;
 
-            // 1. STANDARD BOX OVERLAP CHECK
-            if (p_x < e_x + enemy->meta.width && 
-                p_x + player->meta.width > e_x && 
-                p_y < e_y + enemy->meta.height && 
-                p_y + player->meta.height > e_y) {
-
-                // Calculate current bottom of the player
-                float player_bottom = player->y + (float)player->meta.height;
-                
-                // TUNNELING FIX: Calculate where the player's feet were BEFORE physics moved them this frame
-                float player_bottom_previous = player_bottom - (initial_frame_vy * dt);
-                
-                // Define the top zone of the enemy (upper 25%)
-                float enemy_stomp_threshold = enemy->y + ((float)enemy->meta.height * 0.25f);
-
-                // CORNER-SNAG FIX: Check if player's horizontal center is actually landing over the enemy body
-                float p_center_x = player->x + ((float)player->meta.width / 2.0f);
-                bool is_over_enemy_horizontally = (p_center_x >= (float)e_x - 4.0f) && 
-                                                  (p_center_x <= (float)(e_x + enemy->meta.width) + 4.0f);
-
-                // 2. STOMP CONDITION
-                // True if: Falling down AND horizontally aligned AND (was above threshold last frame OR is within current tolerance)
-                if (initial_frame_vy >= 0.0f && is_over_enemy_horizontally &&
-                    (player_bottom_previous <= enemy_stomp_threshold || player_bottom <= enemy_stomp_threshold + 4.0f)) {
+            // 2. CHECK ATTACK HITBOX VS ENEMY (PLAYER ATTACKS ENEMY)
+            if (is_attacking) {
+                // AABB Overlap test between player's sword and enemy body
+                if (attack_box.x1 < e_x2 && attack_box.x2 > e_x1 &&
+                    attack_box.y1 < e_y2 && attack_box.y2 > e_y1) {
                     
-                    enemy->meta.health--;
-                    if (enemy->meta.health <= 0) {
-                        enemy->meta.state &= ~ACTIVE;
+                    // HIT REGISTER CHECK: Only hit if this unique attack hasn't struck this enemy yet
+                    if (enemy->meta.last_hit_by_attack_id != player->meta.current_attack_id) {
+                        
+                        // Mark this enemy as hit by this specific attack
+                        enemy->meta.last_hit_by_attack_id = player->meta.current_attack_id;
+
+                        // Apply damage
+                        enemy->meta.health--;
+                        if (enemy->meta.health <= 0) {
+                            enemy->meta.health = 0;
+                            enemy->meta.state &= ~ACTIVE;
+                        } else {
+                            // ENEMY KNOCKBACK MECHANICS
+                            // Calculate direction from player to enemy
+                            float p_center_x = player->x + ((float)player->meta.width / 2.0f);
+                            float e_center_x = enemy->x + ((float)enemy->meta.width / 2.0f);
+
+                            // Apply horizontal knockback based on relative positioning
+                            if (e_center_x > p_center_x) {
+                                enemy->physics.vx = 45.0f;  // Less intense fling right
+                            } else {
+                                enemy->physics.vx = -45.0f; // Less intense fling left
+                            }
+
+                            // Reduce the upward pop from -80.0f to -40.0f so they stay closer to the ground
+                            enemy->physics.vy = -20.0f; 
+                            enemy->physics.state &= ~GROUNDED; // Lift them off ground states if tracked
+                        }
                     }
-
-                    // CRITICAL DIRECTION FIX: Screen-space bounce up
-                    player->physics.vy = -fabsf(player->physics.jump_force) * 0.75f;
-                    player->physics.state &= ~GROUNDED;
-                    player->physics.state |= JUMPING;
-                    player->meta.coyote_frames = 0;
                     
-                    // DOUBLE-FRAMING FIX: Give the player a tiny window of safety (10 frames) so 
-                    // they don't get hurt by the same enemy hitbox on the next frame while moving upwards.
-                    player->meta.invincibility_frames = 10; 
-                    
-                    registered_stomp_this_frame = true;
-                    continue; // Successfully stomped; bypass damage check for this enemy slot
+                    continue; // Strike hit cleanly; skip testing if player takes body damage
                 }
+            }
 
-                // 3. HURT CHECK
-                // Only processes if no stomp was registered anywhere during this loop iteration
-                if (!registered_stomp_this_frame && player->meta.invincibility_frames == 0) {
+            // 3. CHECK BODY-TO-BODY OVERLAP (ENEMY HURTS PLAYER)
+            if (player->meta.invincibility_frames == 0) {
+                float p_x1 = player->x;
+                float p_y1 = player->y;
+                float p_x2 = player->x + (float)player->meta.width;
+                float p_y2 = player->y + (float)player->meta.height;
+
+                if (p_x1 < e_x2 && p_x2 > e_x1 &&
+                    p_y1 < e_y2 && p_y2 > e_y1) {
+                    
                     player->meta.health--;
                     if (player->meta.health <= 0) {
-                        player->meta.health = 0; // Absolute clamp
+                        player->meta.health = 0;
                         player->meta.state &= ~ACTIVE;
-                        break; // Exit enemy loop completely; player is dead
+                        break; // Exit enemy loop; player is dead
                     }
 
-                    // Midpoint displacement horizontal knockback
+                    // Player knockback handling
+                    float p_center_x = player->x + ((float)player->meta.width / 2.0f);
                     float e_center_x = enemy->x + ((float)enemy->meta.width / 2.0f);
+                    
                     if (p_center_x < e_center_x) {
                         player->physics.vx = -120.0f;
                     } else {
                         player->physics.vx = 120.0f;
                     }
 
-                    // Screen-space directional damage bounce pop up
                     player->physics.vy = -100.0f;
                     player->physics.state &= ~GROUNDED;
                     player->meta.invincibility_frames = 60;
@@ -629,22 +676,43 @@ void update_character_animation_state(character *self) {
     // Is the character truly resting on something solid? (World tile OR a teammate)
     bool is_on_solid_surface = (self->physics.state & GROUNDED) || (self->meta.state & SUPPORTED_BY_PLAYER);
 
-    // =========================================================================
-    // PHASE 1: EVALUATE & CHOOSE STATE
-    // =========================================================================
-    
-    // 1. Attack override takes ultimate priority
+    // 1. Trigger INITIAL attack from a non-attacking state (Idle, Walk, etc.)
+    if (!(self->meta.state & ATTACKING) && (self->meta.state & WANTS_TO_ATTACK)) {
+        self->meta.current_anim = ANIM_ATTACK;
+        self->meta.current_frame_index = 0;
+        self->meta.state |= ATTACKING;
+        self->meta.state &= ~WANTS_TO_ATTACK; // Consume the input immediately
+        self->meta.current_attack_id++;       // Start a fresh hit register tracking loop
+    }
+
+    // 2. Existing Attack override code (Handles ticking frames and combo chaining)
     if (self->meta.current_anim == ANIM_ATTACK) {
         const anim_config_t *atk_cfg = &character_anims[self->meta.type][ANIM_ATTACK];
-        if (self->meta.current_frame_index < atk_cfg->frame_count - 1) {
+        
+        // Allow a new attack to interrupt if we are in the last 3 frames
+        int early_cancel_frame = atk_cfg->frame_count - 3; 
+        
+        if ((self->meta.state & WANTS_TO_ATTACK) && self->meta.current_frame_index >= early_cancel_frame) {
+            // Restart a fresh combo swing!
+            self->meta.current_anim = ANIM_ATTACK;
+            self->meta.current_frame_index = 0;
+            self->meta.state |= ATTACKING;
+            self->meta.state &= ~WANTS_TO_ATTACK; // Consume input
+            self->meta.current_attack_id++;       // New attack ID so it hits enemies again
+            process_time_based_ticker = true;
+        }
+        else if (self->meta.current_frame_index < atk_cfg->frame_count - 1) {
             process_time_based_ticker = true; 
-        } else {
-            // Attack loop finished, switch to appropriate rest state
+        } 
+        else {
+            // Attack loop finished entirely with no buffered follow-up
             self->meta.current_anim = is_on_solid_surface ? ANIM_IDLE : ANIM_JUMP;
+            self->meta.state &= ~ATTACKING; 
+            self->meta.state &= ~WANTS_TO_ATTACK; // Wipe any old inputs safely
         }
     }
-    
-    // 2. Air states run ONLY if we are floating completely in mid-air
+
+    // 3. Air states run ONLY if we are floating completely in mid-air
     if (self->meta.current_anim != ANIM_ATTACK && !is_on_solid_surface) {
         self->meta.current_anim = ANIM_JUMP;
         float vy = self->physics.vy;
@@ -669,7 +737,7 @@ void update_character_animation_state(character *self) {
         process_time_based_ticker = false;
     }
     
-    // 3. Ground states (Idle or Walk) run if resting safely on world tiles OR on a teammate
+    // 4. Ground states (Idle or Walk) run if resting safely on world tiles OR on a teammate
     else if (self->meta.current_anim != ANIM_ATTACK) {
         if (fabsf(self->physics.vx) > prof->walk_deadzone) {
             self->meta.current_anim = ANIM_WALK;
@@ -700,6 +768,36 @@ void update_character_animation_state(character *self) {
     }
 
     self->meta.current_frame++;
+}
+
+bool get_character_secondary_hitbox(const character *chr, rect_t *out_rect)
+{
+    const anim_config_t *cfg = &character_anims[chr->meta.type][chr->meta.current_anim];
+    if (!cfg || cfg->hitbox_start_frame <= 0) {
+        return false;
+    }
+
+    // Check if the current frame is inside the active hitbox window
+    if (chr->meta.current_frame_index >= cfg->hitbox_start_frame &&
+        chr->meta.current_frame_index <= cfg->hitbox_end_frame)
+    {
+        float actual_offset_x = cfg->hitbox.offset_x;
+        
+        if (chr->physics.facing_direction == FACING_LEFT) {
+            float character_width = chr->meta.width; 
+            actual_offset_x = character_width - cfg->hitbox.offset_x - cfg->hitbox.width;
+        }
+
+        // Calculate absolute WORLD space coordinates
+        out_rect->x1 = chr->x + actual_offset_x;
+        out_rect->y1 = chr->y + cfg->hitbox.offset_y;
+        out_rect->x2 = out_rect->x1 + cfg->hitbox.width;
+        out_rect->y2 = out_rect->y1 + cfg->hitbox.height;
+        
+        return true;
+    }
+
+    return false;
 }
 
 void load_stage_by_index(game_state_t *state, int index) {

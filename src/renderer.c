@@ -3,9 +3,12 @@
 #include "level.h"
 #include "camera.h"
 #include "character.h"
+#include "engine.h"
 
 // Global font handle
 extern camera_t cameras[MAX_VIEWPORTS];
+extern anim_config_t character_anims[CHAR_TYPE_MAX][NUMBER_OF_ANIMATION_STATES];
+
 sprite_t* level_tilesheet;
 
 typedef struct {
@@ -19,7 +22,7 @@ visual_layout_t character_visuals[NUMBER_OF_CHARACTER_TYPES][NUMBER_OF_ANIMATION
     [KNIGHT] = {
         [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
         [ANIM_WALK]   = { .offset_x = 8,  .offset_y = 16, .flip_offset_correction = -14.0f }, // Lean forward slightly
-        [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
+        [ANIM_ATTACK] = { .offset_x = 9, .offset_y = 15,   .flip_offset_correction = -18.0f }, // Sword extends forward
         [ANIM_JUMP] = {   .offset_x = 8,    .offset_y = 16, .flip_offset_correction = -15.0f }
     },
     [ELF] = {
@@ -64,7 +67,7 @@ void renderer_init(void) {
     level_tilesheet  = sprite_load("rom:/tiles.sprite");
     character_visuals[KNIGHT][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
     character_visuals[KNIGHT][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
-    character_visuals[KNIGHT][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[KNIGHT][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-attack.sprite");
     character_visuals[KNIGHT][ANIM_JUMP].sprite_sheet   = sprite_load("rom:/knight-jump.sprite");
     character_visuals[ELF][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
     character_visuals[ELF][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
@@ -237,6 +240,32 @@ void debug_draw_character_hitbox(const character *chr, const camera_t *active_ca
     rdpq_fill_rectangle(x1, y1, x1 + 1, y2);
     // Right Edge
     rdpq_fill_rectangle(x2 - 1, y1, x2, y2);
+
+
+    debug_draw_secondary_hitbox(chr, active_cam, off_x, off_y);
+}
+
+void debug_draw_secondary_hitbox(const character *chr, const camera_t *active_cam, int off_x, int off_y)
+{
+    rect_t hitbox;
+    if (!get_character_secondary_hitbox(chr, &hitbox)) {
+        return; // No active hitbox right now
+    }
+
+    // Convert the extracted world space coordinates into screen space using floored camera math
+    int cam_x_floor = (int)floorf(active_cam->x);
+    int cam_y_floor = (int)floorf(active_cam->y);
+
+    int x1 = (int)floorf(hitbox.x1) - cam_x_floor + off_x;
+    int y1 = (int)floorf(hitbox.y1) - cam_y_floor + off_y;
+    int x2 = (int)floorf(hitbox.x2) - cam_x_floor + off_x;
+    int y2 = (int)floorf(hitbox.y2) - cam_y_floor + off_y;
+
+    // Draw the 4 edges of the box
+    rdpq_fill_rectangle(x1, y1, x2, y1 + 1);       // Top
+    rdpq_fill_rectangle(x1, y2 - 1, x2, y2);       // Bottom
+    rdpq_fill_rectangle(x1, y1, x1 + 1, y2);       // Left
+    rdpq_fill_rectangle(x2 - 1, y1, x2, y2);       // Right
 }
 
 void draw_single_character(const character *chr, const camera_t *active_cam, int off_x, int off_y, int view_w, int view_h) {
@@ -271,7 +300,6 @@ void draw_single_character(const character *chr, const camera_t *active_cam, int
     // =========================================================================
     // --- EXPLICIT DATA-DRIVEN MANUAL PIXEL OFFSETS ---
     // =========================================================================
- // NEW: Fetch using both type and current animation state
     const visual_layout_t *vis = &character_visuals[chr->meta.type][chr->meta.current_anim];
 
     screen_x += vis->offset_x;

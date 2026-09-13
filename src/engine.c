@@ -173,7 +173,7 @@ void engine_update(game_state_t *state, float dt) {
 
     // 3. RESOLVE COMBAT OUTCOMES LAST
     // This evaluates modifications over clean, locked positions
-    check_pve_combat(state);
+    check_pve_combat(state, dt);
 
     if (state->match_state == STATE_PLAYING) {
         
@@ -528,12 +528,11 @@ void ai_behavior_goomba(const character *enemy, const character *target, bool *m
     }
 }
 
-void check_pve_combat(game_state_t *state) {
+void check_pve_combat(game_state_t *state, float dt) {
     for (int p = 0; p < MAX_PLAYERS; p++) {
         character *player = &state->players[p];
         if (!(player->meta.state & ACTIVE)) continue;
 
-        // --- CLUSTER SHIELD CONFIGURATION ---
         // Cache initial downward speed before evaluation loop alters it dynamically
         float initial_frame_vy = player->physics.vy;
         bool registered_stomp_this_frame = false;
@@ -548,62 +547,72 @@ void check_pve_combat(game_state_t *state) {
             int e_x = (int)(enemy->x + 0.5f);
             int e_y = (int)(enemy->y + 0.5f);
 
-            // FIXED: Bounding box overlap calculation uses unique local meta metrics
-            if (p_x < e_x + enemy->meta.width &&
-                p_x + player->meta.width > e_x &&
-                p_y < e_y + enemy->meta.height &&
+            // 1. STANDARD BOX OVERLAP CHECK
+            if (p_x < e_x + enemy->meta.width && 
+                p_x + player->meta.width > e_x && 
+                p_y < e_y + enemy->meta.height && 
                 p_y + player->meta.height > e_y) {
 
-                // =========================================================================
-                // --- DESIGN CRITERIA: CRISP STOMP WINDOW DETECTOR (DYNAMIC SIZES) ---
-                // =========================================================================
-                // FIXED: Calculates player bottom edge relative to their specific height
+                // Calculate current bottom of the player
                 float player_bottom = player->y + (float)player->meta.height;
                 
-                // FIXED: Calculates enemy stomp threshold relative to the target's specific height
+                // TUNNELING FIX: Calculate where the player's feet were BEFORE physics moved them this frame
+                float player_bottom_previous = player_bottom - (initial_frame_vy * dt);
+                
+                // Define the top zone of the enemy (upper 25%)
                 float enemy_stomp_threshold = enemy->y + ((float)enemy->meta.height * 0.25f);
 
-                // STOMP CHECK: Uses our cached vertical frame vector to protect cluster overlaps
-                if (initial_frame_vy > 0.0f && player_bottom <= enemy_stomp_threshold + 8.0f) {
+                // CORNER-SNAG FIX: Check if player's horizontal center is actually landing over the enemy body
+                float p_center_x = player->x + ((float)player->meta.width / 2.0f);
+                bool is_over_enemy_horizontally = (p_center_x >= (float)e_x - 4.0f) && 
+                                                  (p_center_x <= (float)(e_x + enemy->meta.width) + 4.0f);
+
+                // 2. STOMP CONDITION
+                // True if: Falling down AND horizontally aligned AND (was above threshold last frame OR is within current tolerance)
+                if (initial_frame_vy >= 0.0f && is_over_enemy_horizontally &&
+                    (player_bottom_previous <= enemy_stomp_threshold || player_bottom <= enemy_stomp_threshold + 4.0f)) {
+                    
                     enemy->meta.health--;
                     if (enemy->meta.health <= 0) {
                         enemy->meta.state &= ~ACTIVE;
-                    }                        
+                    }
 
-                    // CRITICAL DIRECTION FIX: Screen-space coordinates require a NEGATIVE 
-                    // Y velocity vector to bounce UPWARDS away from the ground plane.
+                    // CRITICAL DIRECTION FIX: Screen-space bounce up
                     player->physics.vy = -fabsf(player->physics.jump_force) * 0.75f;
-                    
                     player->physics.state &= ~GROUNDED;
                     player->physics.state |= JUMPING;
                     player->meta.coyote_frames = 0;
-
+                    
+                    // DOUBLE-FRAMING FIX: Give the player a tiny window of safety (10 frames) so 
+                    // they don't get hurt by the same enemy hitbox on the next frame while moving upwards.
+                    player->meta.invincibility_frames = 10; 
+                    
                     registered_stomp_this_frame = true;
-                    continue; // Safe! Skips out to process the next entity slot
-                }               
-                // HURT CHECK: Enforces cluster protection so a successful stomp shield won't poison a teammate frame
-                else if (!registered_stomp_this_frame && player->meta.invincibility_frames == 0) { 
+                    continue; // Successfully stomped; bypass damage check for this enemy slot
+                }
+
+                // 3. HURT CHECK
+                // Only processes if no stomp was registered anywhere during this loop iteration
+                if (!registered_stomp_this_frame && player->meta.invincibility_frames == 0) {
                     player->meta.health--;
                     if (player->meta.health <= 0) {
                         player->meta.health = 0; // Absolute clamp
                         player->meta.state &= ~ACTIVE;
-                        break; // Safely breaks enemy scanning loop for this dead player slot
+                        break; // Exit enemy loop completely; player is dead
                     }
 
-                    // FIXED: Calculates midpoint displacement offsets dynamically via local parameters
-                    float p_center_x = player->x + ((float)player->meta.width / 2.0f);
+                    // Midpoint displacement horizontal knockback
                     float e_center_x = enemy->x + ((float)enemy->meta.width / 2.0f);
-
                     if (p_center_x < e_center_x) {
-                        player->physics.vx = -120.0f; 
+                        player->physics.vx = -120.0f;
                     } else {
-                        player->physics.vx = 120.0f;  
+                        player->physics.vx = 120.0f;
                     }
-                    
-                    // Matches screen-space directional damage bounce pop up
-                    player->physics.vy = -100.0f; 
+
+                    // Screen-space directional damage bounce pop up
+                    player->physics.vy = -100.0f;
                     player->physics.state &= ~GROUNDED;
-                    player->meta.invincibility_frames = 60; 
+                    player->meta.invincibility_frames = 60;
                 }
             }
         }

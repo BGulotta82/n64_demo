@@ -31,7 +31,7 @@ void engine_update(game_state_t *state, float dt);
 void load_stage_by_index(game_state_t *state, int index);
 void check_new_player_spawn(character *self, character *players, level_t *level, input_state *input);
 void spawn_new_player(character *self, character *players, level_t *level);
-void check_pve_combat(game_state_t *state);
+void check_pve_combat(game_state_t *state, float dt);
 void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state *dummy_input, float dt);
 void ai_behavior_skeleton(character *enemy, const character *target, float distance, bool hit_cliff_edge, input_state *dummy_input, bool *move_left, bool *move_right);
 void ai_behavior_goomba(const character *enemy, const character *target, bool *move_left, bool *move_right);

@@ -1,7 +1,7 @@
 #include "character.h"
 #include "level.h"
 
-extern const animation_profile_t CHARACTER_ANIMATION_PROFILES[CHARACTER_TYPE_MAX];
+extern const animation_profile_t character_animation_profiles[CHAR_TYPE_MAX];
 
 float physics_constants[NUMBER_OF_CHARACTER_TYPES][9]= {
     // Column Guide:
@@ -46,7 +46,7 @@ void character_init(character *character, character_type type, bool is_enemy) {
     if(!character) return;
 
     // init meta
-    character->meta.anim_profile = &CHARACTER_ANIMATION_PROFILES[type];
+    character->meta.anim_profile = &character_animation_profiles[type];
     character->meta.state = CHARACTER_NONE;
     character->meta.type = type;
     character->meta.coyote_frames = 0;

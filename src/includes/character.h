@@ -19,7 +19,7 @@ typedef enum {
     DWARF       = 3,
     GOOMBA      = 4,
     SKELETON    = 5,
-    CHARACTER_TYPE_MAX
+    CHAR_TYPE_MAX
 } character_type;
 
 typedef enum {

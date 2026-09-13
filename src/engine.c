@@ -17,7 +17,7 @@ typedef struct {
 } anim_config_t;
 
 // Define the static constant table mapping parameters directly to the character type index
-const animation_profile_t CHARACTER_ANIMATION_PROFILES[CHARACTER_TYPE_MAX] = {
+const animation_profile_t character_animation_profiles[CHAR_TYPE_MAX] = {
     [KNIGHT]   = { -4.0f, -0.5f, 0.5f, 4.0f, 0.1f },
     [ELF]      = { -5.0f, -0.7f, 0.7f, 5.0f, 0.08f }, // Fast/light archetype adjustments
     [WIZARD]   = { -3.5f, -0.4f, 0.4f, 3.5f, 0.12f },
@@ -27,11 +27,43 @@ const animation_profile_t CHARACTER_ANIMATION_PROFILES[CHARACTER_TYPE_MAX] = {
 };
 
 // Add your complete mapping table to cover all 4 types safely
-static const anim_config_t character_anims[NUMBER_OF_ANIMATION_STATES] = {
-    [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8 },
-    [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6 },
-    [ANIM_ATTACK] = { .frame_count = 12, .frame_duration = 4 },
-    [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0 } // Duration 0: Velocity handles this explicitly
+static const anim_config_t character_anims[CHAR_TYPE_MAX][NUMBER_OF_ANIMATION_STATES] = {
+    [KNIGHT] = {
+        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8 },
+        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6 },
+        [ANIM_ATTACK] = { .frame_count = 12, .frame_duration = 4 },
+        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0 } // Duration 0: Velocity handles this explicitly
+    },
+    [ELF] = {
+        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8 },
+        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6 },
+        [ANIM_ATTACK] = { .frame_count = 12, .frame_duration = 4 },
+        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0 } // Duration 0: Velocity handles this explicitly
+    },
+    [WIZARD] = {
+        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8 },
+        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6 },
+        [ANIM_ATTACK] = { .frame_count = 12, .frame_duration = 4 },
+        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0 } // Duration 0: Velocity handles this explicitly
+    },
+    [DWARF] = {
+        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8 },
+        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6 },
+        [ANIM_ATTACK] = { .frame_count = 12, .frame_duration = 4 },
+        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0 } // Duration 0: Velocity handles this explicitly
+    },
+    [GOOMBA] = {
+        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8 },
+        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6 },
+        [ANIM_ATTACK] = { .frame_count = 12, .frame_duration = 4 },
+        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0 } // Duration 0: Velocity handles this explicitly
+    },
+    [SKELETON] = {
+        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8 },
+        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6 },
+        [ANIM_ATTACK] = { .frame_count = 12, .frame_duration = 4 },
+        [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0 } // Duration 0: Velocity handles this explicitly
+    }
 };
 
 // Define your static level playlist mapping parameters
@@ -580,7 +612,7 @@ void check_pve_combat(game_state_t *state) {
 
 void update_character_animation_state(character *self) {
     const animation_profile_t *prof = self->meta.anim_profile;
-    if (!prof) prof = &CHARACTER_ANIMATION_PROFILES[KNIGHT];
+    if (!prof) prof = &character_animation_profiles[self->meta.type];
 
     anim_state_t previous_anim = self->meta.current_anim;
     bool process_time_based_ticker = true;
@@ -594,7 +626,7 @@ void update_character_animation_state(character *self) {
     
     // 1. Attack override takes ultimate priority
     if (self->meta.current_anim == ANIM_ATTACK) {
-        const anim_config_t *atk_cfg = &character_anims[ANIM_ATTACK];
+        const anim_config_t *atk_cfg = &character_anims[self->meta.type][ANIM_ATTACK];
         if (self->meta.current_frame_index < atk_cfg->frame_count - 1) {
             process_time_based_ticker = true; 
         } else {
@@ -647,7 +679,7 @@ void update_character_animation_state(character *self) {
     // PHASE 2: PROGRESS GROUND ANIMATION TICKERS
     // =========================================================================
     if (process_time_based_ticker) {
-        const anim_config_t *cfg = &character_anims[self->meta.current_anim];
+        const anim_config_t *cfg = &character_anims[self->meta.type][self->meta.current_anim];
         
         if (cfg->frame_duration > 0) {
             self->meta.anim_timer++;

@@ -1,5 +1,4 @@
 #include "character.h"
-#include "level.h"
 
 extern const animation_profile_t character_animation_profiles[CHAR_TYPE_MAX];
 
@@ -72,11 +71,13 @@ void character_init(character *character, character_type type, bool is_enemy) {
 
     switch(type) {
         case KNIGHT:
-        character->meta.width = 18.0f;
-        character->meta.height = 32.0f;
+            character->meta.width = 18.0f;
+            character->meta.height = 32.0f;
             character->meta.health = 4;
         break;
         case ELF:
+            character->meta.width = 16.0f;
+            character->meta.height = 28.0f;
             character->meta.health = 3;
         break;
         case WIZARD:

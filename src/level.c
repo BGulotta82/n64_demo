@@ -1,5 +1,4 @@
 #include "level.h"
-#include <libdragon.h>
 
 #define PLAYER_SPAWN (101)
 

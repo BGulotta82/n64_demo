@@ -1,64 +1,15 @@
 #ifndef ENGINE_H
 #define ENGINE_H
 
+#include "structs.h"
 #include "level.h"
+#include "camera.h"
 #include "input.h"
 #include "character.h"
-#include "camera.h"
-
-typedef enum {
-    STATE_WAITING_TO_START,
-    STATE_PLAYING,
-    STATE_LEVEL_CLEARED,
-    STATE_GAME_OVER,
-    STATE_STAGE_INTRO
-} match_state_t;
-
-typedef struct {
-    int frame;
-    input_state input[MAX_PLAYERS];
-    character players[MAX_PLAYERS];
-    character enemies[MAX_ENEMIES];
-    level_t level; 
-    int level_index; 
-    float level_timer;
-    int total_enemies_left;
-    match_state_t match_state; 
-} game_state_t;
-
-typedef enum {
-    HITBOX_STYLE_NONE,
-    HITBOX_STYLE_MELEE_SWEEP, // E.g., Knight's sword arc
-    HITBOX_STYLE_PROJECTILE,  // E.g., Wizard's spell origin, Elf's arrow
-    HITBOX_STYLE_AOE,         // E.g., Ground slam, explosion
-    HITBOX_STYLE_BITE         // E.g., Goomba's direct contact touch
-} hitbox_style_t;
-
-typedef struct {
-    float x1, y1;
-    float x2, y2;
-} rect_t;
-
-typedef struct {
-    hitbox_style_t style;
-    float width;
-    float height;
-    float offset_x; // Position relative to character X (accounts for facing direction)
-    float offset_y; // Position relative to character Y
-} hitbox_config_t;
-
-typedef struct {
-    const char *filename;
-    float time_limit;
-} stage_config_t;
-
-typedef struct {
-    int frame_count;   // Abstract number of frames in this action
-    int frame_duration;// How many game ticks to hold each frame
-    int hitbox_start_frame; // The frame the hitbox becomes active
-    int hitbox_end_frame;   // The frame the hitbox disappears
-    hitbox_config_t hitbox; 
-} anim_config_t;
+#include <string.h>
+#include <stdlib.h>
+#include <math.h>
+#include <stdbool.h>
 
 
 void engine_init(game_state_t *state);

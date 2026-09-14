@@ -1,9 +1,5 @@
 #include <libdragon.h>
 #include "renderer.h"
-#include "level.h"
-#include "camera.h"
-#include "character.h"
-#include "engine.h"
 
 // Global font handle
 extern camera_t cameras[MAX_VIEWPORTS];
@@ -72,12 +68,22 @@ void renderer_init(void) {
     character_visuals[ELF][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
     character_visuals[ELF][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
     character_visuals[ELF][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[ELF][ANIM_JUMP].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
     character_visuals[WIZARD][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
     character_visuals[WIZARD][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
     character_visuals[WIZARD][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[WIZARD][ANIM_JUMP].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
     character_visuals[DWARF][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
     character_visuals[DWARF][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
     character_visuals[DWARF][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[DWARF][ANIM_JUMP].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[GOOMBA][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[GOOMBA][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
+    character_visuals[GOOMBA][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[SKELETON][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[SKELETON][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
+    character_visuals[SKELETON][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
+    character_visuals[SKELETON][ANIM_JUMP].sprite_sheet   = sprite_load("rom:/knight-jump.sprite");
 }
 
 // Update your function signature to accept surface_t *disp

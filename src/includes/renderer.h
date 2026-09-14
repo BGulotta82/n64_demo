@@ -1,6 +1,7 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
+#include "structs.h"
 #include "engine.h"
 
 void renderer_init(void);

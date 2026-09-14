@@ -1,24 +1,9 @@
 #ifndef CAMERA_H
 #define CAMERA_H
 
+#include "structs.h"
+#include "constants.h"
 #include <stdbool.h>
-#include "character.h"
-
-typedef struct {
-    int screen_x;      // Physical pixel start position on the TV (X axis)
-    int screen_y;      // Physical pixel start position on the TV (Y axis)
-    int width;         // Width boundary of this player's viewport window
-    int height;        // Height boundary of this player's viewport window
-} viewport_layout_t;
-
-typedef struct {
-    float x;
-    float y;
-    float width;
-    float height;
-    float world_width;
-    float world_height;
-} camera_t;
 
 extern viewport_layout_t viewport_configs[4][4]; // Declare its shape, but do not assign values here!
 

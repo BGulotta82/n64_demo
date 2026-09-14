@@ -20,5 +20,4 @@
 // 2. Input Buffers
 #define JUMP_BUFFER_MAX (5)
 #define COYOTE_MAX (6)
-
 #endif // CONSTANTS_H

@@ -1,5 +1,4 @@
 #include "camera.h"
-#include "constants.h"
 
 camera_t cameras[MAX_VIEWPORTS]; 
 

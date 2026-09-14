@@ -1,7 +1,9 @@
 #ifndef CHARACTER_H
 #define CHARACTER_H
-#include "constants.h"
-#include "input.h"
+
+#include "level.h"
+#include "structs.h"
+#include <math.h>
 #include <stdbool.h>
 
 /* 
@@ -12,94 +14,6 @@
 */   
 extern float physics_constants[NUMBER_OF_CHARACTER_TYPES][9];
 
-typedef enum {
-    KNIGHT      = 0,
-    ELF         = 1,
-    WIZARD      = 2,
-    DWARF       = 3,
-    GOOMBA      = 4,
-    SKELETON    = 5,
-    CHAR_TYPE_MAX
-} character_type;
-
-typedef enum {
-    FACING_RIGHT = 0,
-    FACING_LEFT  = 1
-} facing_dir;
-
-typedef enum {
-    PHYSICS_NONE        =  0,
-    GROUNDED    =  1 << 0, 
-    MOVING_LEFT = 1 << 1, 
-    MOVING_RGHT = 1 << 2, 
-    JUMPING     = 1 << 3  
-} physics_state;
-
-typedef enum {
-    CHARACTER_NONE        =  0,
-    ACTIVE      =  1 << 0, 
-    SPAWNED     = 1 << 1,
-    SUPPORTED_BY_PLAYER = 1 << 2,
-    ATTACKING             = 1 << 3,  // 8  
-    WANTS_TO_ATTACK       = 1 << 4 // 16
-} character_state;
-
-typedef enum {
-    ANIM_IDLE,
-    ANIM_WALK,
-    ANIM_ATTACK,
-    ANIM_JUMP,
-    NUMBER_OF_ANIMATION_STATES
-} anim_state_t;
-
-typedef struct {
-    float jump_fast_up_threshold;   // Velocity below which Frame 1 triggers
-    float jump_slow_up_threshold;   // Velocity below which Frame 2 triggers
-    float apex_threshold;           // Absolute window bounds for Frame 3 (+/-)
-    float fall_slow_down_threshold; // Velocity below which Frame 4 triggers
-    float walk_deadzone;            // Minimum speed threshold to leave IDLE state
-} animation_profile_t;
-
-typedef struct {
-    int coyote_frames;       // Time allowed to jump AFTER leaving a ledge
-    int jump_buffer_frames, invincibility_frames;  // Time to remember a jump press BEFORE touching down
-    int health;
-    int current_attack_id;      // Increment this every time the player presses the attack button
-    int last_hit_by_attack_id;  //
-    int ai_home_row;         
-    int ai_jump_cooldown;    
-    bool is_enemy;
-    int width;   
-    int height; 
-     int current_frame;    
-    anim_state_t current_anim;  // e.g., ANIM_WALK
-    int anim_timer;             // Ticks passed in current frame
-    int current_frame_index;    // 0, 1, 2, 3... (Abstract frame index)
-    const animation_profile_t *anim_profile;
-    character_state state;                
-    character_type type;      
-} character_meta;
-
-typedef struct {
-    // Current State (Changes every frame)
-    float vx, vy;            // Velocity X and Y
-    float ax, ay;            // Acceleration X and Y
-    physics_state state;
-    facing_dir facing_direction;
-    // Movement Constants (Configurable limits)
-    float max_speed, turn_multiplier;
-    float ground_acceleration, air_acceleration;
-    float ground_friction, air_friction;
-    float gravity_scale;     // Multiplier for global world gravity
-    float jump_height, jump_force, jump_time_to_peak; // Jump force and time to peak for jump calculations
-    float terminal_velocity; // Maximum falling speed
-} character_physics;
-
-typedef struct {
-    float x, y;
-    character_meta meta;
-    character_physics physics; // Physics properties for the character
-} character;
 
 void character_init(character *character, character_type type, bool is_enemy);
 void character_update(character *self, character *players, input_state *input, uint8_t *map_data, float dt);

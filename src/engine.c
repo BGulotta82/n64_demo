@@ -1,7 +1,4 @@
 #include "engine.h"
-#include "camera.h"
-#include <string.h>
-#include <stdlib.h>
 
 extern camera_t cameras[MAX_VIEWPORTS];
 
@@ -275,7 +272,7 @@ void check_new_player_spawn(character *self, character *players, level_t *level,
       !(self->meta.state & SPAWNED))
     {
         //character_type type = (rand() % 4) + 1; 
-        character_type type = KNIGHT; 
+        character_type type = ELF; 
 
         character_init(self, type, false);
         self->meta.state |= ACTIVE;

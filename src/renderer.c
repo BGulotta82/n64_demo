@@ -1,4 +1,3 @@
-#include <libdragon.h>
 #include "renderer.h"
 
 // Global font handle

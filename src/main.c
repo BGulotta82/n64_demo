@@ -1,6 +1,5 @@
 #include "engine.h"
 #include "renderer.h"
-#include <libdragon.h>
 
 extern camera_t cameras[MAX_VIEWPORTS];
 

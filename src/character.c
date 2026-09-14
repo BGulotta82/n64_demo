@@ -53,6 +53,7 @@ void character_init(character *character, character_type type, bool is_enemy) {
     character->meta.invincibility_frames = 0;
     character->meta.ai_home_row = 0;
     character->meta.ai_jump_cooldown = 0;
+    character->meta.current_anim_frame_index = 0;
     character->meta.current_frame = 0;
     character->meta.anim_timer = 0;
     character->meta.current_anim = 0;

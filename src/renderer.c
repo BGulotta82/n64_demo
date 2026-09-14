@@ -202,7 +202,7 @@ void debug_render_character_telemetry(const character *c, float x, float y) {
         c->meta.health, c->meta.is_enemy ? "YES" : "NO",
         c->meta.coyote_frames, c->meta.jump_buffer_frames,
         c->meta.invincibility_frames, c->meta.ai_jump_cooldown,
-        c->meta.current_anim, c->meta.current_frame, c->meta.current_frame_index,
+        c->meta.current_anim, c->meta.current_frame, c->meta.current_anim_frame_index,
         c->meta.anim_timer
     );
 
@@ -320,7 +320,7 @@ void draw_single_character(const character *chr, const camera_t *active_cam, int
 
     // Safety checks for frame bounds to protect TMEM boundaries
     int max_sheet_frames = sheet->width / tile_dim;
-    int visual_frame = chr->meta.current_frame_index;
+    int visual_frame = chr->meta.current_anim_frame_index;
     if (visual_frame >= max_sheet_frames || visual_frame < 0) {
         visual_frame = 0;
     }

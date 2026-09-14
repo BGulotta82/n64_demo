@@ -13,7 +13,6 @@ typedef struct {
     float move_y;            // Normalized -1.0 to 1.0
 } input_state;
 #pragma endregion
-
 #pragma region LEVEL_STRUCTS
 typedef struct {
     uint8_t map_data[TOTAL_TILES];
@@ -27,7 +26,6 @@ typedef struct {
     int number_of_enemies;
 } level_t;
 #pragma endregion
-
 #pragma region CAMERA_STRUCTS
 typedef struct {
     int screen_x;      // Physical pixel start position on the TV (X axis)
@@ -45,7 +43,6 @@ typedef struct {
     float world_height;
 } camera_t;
 #pragma endregion
-
 #pragma region CHARACTER_STRUCTS
 typedef struct {
     float jump_fast_up_threshold;   // Velocity below which Frame 1 triggers
@@ -66,10 +63,10 @@ typedef struct {
     bool is_enemy;
     int width;   
     int height; 
-     int current_frame;    
     anim_state_t current_anim;  // e.g., ANIM_WALK
     int anim_timer;             // Ticks passed in current frame
-    int current_frame_index;    // 0, 1, 2, 3... (Abstract frame index)
+    int current_frame;
+    int current_anim_frame_index;    // 0, 1, 2, 3... (Abstract frame index)
     const animation_profile_t *anim_profile;
     character_state state;                
     character_type type;      
@@ -91,6 +88,33 @@ typedef struct {
 } character_physics;
 
 typedef struct {
+    float x, y;
+    character_meta meta;
+    character_physics physics; // Physics properties for the character
+} character;
+#pragma endregion
+#pragma region PROJECTILE_STRUCTS
+typedef struct {
+    // Keep from character_meta
+    int width, height;
+    bool is_enemy;
+    int damage_source_id; // Remapped from last_hit_by_attack_id    
+    // Animation (if applicable)
+    const animation_profile_t *anim_profile;
+    int current_anim_frame_index;
+    int anim_timer;
+    // --- CRITICAL PROJECTILE ADDITIONS ---
+    projectile_type type;   // MAGIC, ARROW, etc.
+    int damage;             // How much health to subtract on hit
+    int lifetime_frames;    // Despawn timer so missed shots don't fly forever
+    bool pierces;           // Does it disappear on hit, or go through targets?
+    
+    // Physics parameters (if not handled externally)
+    float speed;            
+    float gravity_scale;    // 0.0 for magic, 1.0 for arrows
+} projectile_meta;
+
+typedef struct {
     // Current State
     float vx, vy;         // Velocity X and Y
     float ax, ay;         // Acceleration X and Y
@@ -99,15 +123,13 @@ typedef struct {
     float air_friction;   // Optional: For drag
     float gravity_scale;  // Optional: 0 for straight lines, 1+ for arcs
     float terminal_velocity;
-    // Optional: Only include if making homing projectiles
-    // float turn_multiplier; 
 } projectile_physics;
 
 typedef struct {
     float x, y;
-    character_meta meta;
-    character_physics physics; // Physics properties for the character
-} character;
+    projectile_meta meta;
+    projectile_physics physics; // Physics properties for the projectile
+} projectile;
 #pragma endregion
 
 #pragma region ENGINE_STRUCTS

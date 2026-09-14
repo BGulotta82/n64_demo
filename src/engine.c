@@ -676,7 +676,7 @@ void update_character_animation_state(character *self) {
     // 1. Trigger INITIAL attack from a non-attacking state (Idle, Walk, etc.)
     if (!(self->meta.state & ATTACKING) && (self->meta.state & WANTS_TO_ATTACK)) {
         self->meta.current_anim = ANIM_ATTACK;
-        self->meta.current_frame_index = 0;
+        self->meta.current_anim_frame_index = 0;
         self->meta.state |= ATTACKING;
         self->meta.state &= ~WANTS_TO_ATTACK; // Consume the input immediately
         self->meta.current_attack_id++;       // Start a fresh hit register tracking loop
@@ -689,16 +689,16 @@ void update_character_animation_state(character *self) {
         // Allow a new attack to interrupt if we are in the last 3 frames
         int early_cancel_frame = atk_cfg->frame_count - 3; 
         
-        if ((self->meta.state & WANTS_TO_ATTACK) && self->meta.current_frame_index >= early_cancel_frame) {
+        if ((self->meta.state & WANTS_TO_ATTACK) && self->meta.current_anim_frame_index >= early_cancel_frame) {
             // Restart a fresh combo swing!
             self->meta.current_anim = ANIM_ATTACK;
-            self->meta.current_frame_index = 0;
+            self->meta.current_anim_frame_index = 0;
             self->meta.state |= ATTACKING;
             self->meta.state &= ~WANTS_TO_ATTACK; // Consume input
             self->meta.current_attack_id++;       // New attack ID so it hits enemies again
             process_time_based_ticker = true;
         }
-        else if (self->meta.current_frame_index < atk_cfg->frame_count - 1) {
+        else if (self->meta.current_anim_frame_index < atk_cfg->frame_count - 1) {
             process_time_based_ticker = true; 
         } 
         else {
@@ -715,19 +715,19 @@ void update_character_animation_state(character *self) {
         float vy = self->physics.vy;
 
         if (vy < prof->jump_fast_up_threshold) {
-            self->meta.current_frame_index = 0;
+            self->meta.current_anim_frame_index = 0;
         } 
         else if (vy < prof->jump_slow_up_threshold) {
-            self->meta.current_frame_index = 1;
+            self->meta.current_anim_frame_index = 1;
         } 
         else if (vy >= -prof->apex_threshold && vy <= prof->apex_threshold) {
-            self->meta.current_frame_index = 2;
+            self->meta.current_anim_frame_index = 2;
         } 
         else if (vy <= prof->fall_slow_down_threshold) {
-            self->meta.current_frame_index = 3;
+            self->meta.current_anim_frame_index = 3;
         } 
         else {
-            self->meta.current_frame_index = 4;
+            self->meta.current_anim_frame_index = 4;
         }
         
         self->meta.anim_timer = 0;
@@ -746,7 +746,7 @@ void update_character_animation_state(character *self) {
     // State Transition Reset
     if (self->meta.current_anim != previous_anim) {
         self->meta.anim_timer = 0;
-        self->meta.current_frame_index = 0;
+        self->meta.current_anim_frame_index = 0;
     }
 
     // =========================================================================
@@ -759,7 +759,7 @@ void update_character_animation_state(character *self) {
             self->meta.anim_timer++;
             if (self->meta.anim_timer >= cfg->frame_duration) {
                 self->meta.anim_timer = 0;
-                self->meta.current_frame_index = (self->meta.current_frame_index + 1) % cfg->frame_count;
+                self->meta.current_anim_frame_index = (self->meta.current_anim_frame_index + 1) % cfg->frame_count;
             }
         }
     }
@@ -775,8 +775,8 @@ bool get_character_secondary_hitbox(const character *chr, rect_t *out_rect)
     }
 
     // Check if the current frame is inside the active hitbox window
-    if (chr->meta.current_frame_index >= cfg->hitbox_start_frame &&
-        chr->meta.current_frame_index <= cfg->hitbox_end_frame)
+    if (chr->meta.current_anim_frame_index >= cfg->hitbox_start_frame &&
+        chr->meta.current_anim_frame_index <= cfg->hitbox_end_frame)
     {
         float actual_offset_x = cfg->hitbox.offset_x;
         

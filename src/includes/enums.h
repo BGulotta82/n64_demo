@@ -2,6 +2,12 @@
 #define ENUMS_H
 
 typedef enum {
+    ARROWS = 0,
+    MAGIC = 1,
+    PROJECTILE_TYPE_MAX
+} projectile_type;
+
+typedef enum {
     KNIGHT      = 0,
     ELF         = 1,
     WIZARD      = 2,

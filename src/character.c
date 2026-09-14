@@ -238,7 +238,7 @@ void handle_move_left(character *character, input_state *input, float dt)
     if (input->active_actions & ACTION_MOVE_LEFT)
     {
         character->physics.state |= MOVING_LEFT;
-        character->physics.state &= ~MOVING_RGHT;
+        character->physics.state &= ~MOVING_RIGHT;
         character->physics.facing_direction = FACING_LEFT; 
 
         // Choose acceleration based on ground vs air status
@@ -279,7 +279,7 @@ void handle_move_right(character *character, input_state *input, float dt)
 {
     if (input->active_actions & ACTION_MOVE_RIGHT)
     {
-        character->physics.state |= MOVING_RGHT;
+        character->physics.state |= MOVING_RIGHT;
         character->physics.state &= ~MOVING_LEFT;
         character->physics.facing_direction = FACING_RIGHT; 
 

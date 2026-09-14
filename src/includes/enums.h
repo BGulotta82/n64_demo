@@ -20,7 +20,7 @@ typedef enum {
     PHYSICS_NONE        =  0,
     GROUNDED    =  1 << 0, 
     MOVING_LEFT = 1 << 1, 
-    MOVING_RGHT = 1 << 2, 
+    MOVING_RIGHT = 1 << 2, 
     JUMPING     = 1 << 3  
 } physics_state;
 

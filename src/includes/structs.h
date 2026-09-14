@@ -91,6 +91,19 @@ typedef struct {
 } character_physics;
 
 typedef struct {
+    // Current State
+    float vx, vy;         // Velocity X and Y
+    float ax, ay;         // Acceleration X and Y
+    // Projectile Constants
+    float max_speed;
+    float air_friction;   // Optional: For drag
+    float gravity_scale;  // Optional: 0 for straight lines, 1+ for arcs
+    float terminal_velocity;
+    // Optional: Only include if making homing projectiles
+    // float turn_multiplier; 
+} projectile_physics;
+
+typedef struct {
     float x, y;
     character_meta meta;
     character_physics physics; // Physics properties for the character

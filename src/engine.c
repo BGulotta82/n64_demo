@@ -299,7 +299,7 @@ void spawn_new_player(character *self, character *players, level_t *level)
             return;
         }
 
-        bool p1_moving_right = players[0].physics.state & MOVING_RGHT;
+        bool p1_moving_right = players[0].physics.state & MOVING_RIGHT;
         float desired_offset = p1_moving_right ? -20.0f : 20.0f; // Tucked slightly closer than 30px
         
         float target_x = players[0].x + desired_offset;

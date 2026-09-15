@@ -13,8 +13,6 @@ int main(void) {
     timer_init();
     engine_init(&state);    
 
-    load_stage_by_index(&state, 0); 
-
     unsigned long long last_ticks = timer_ticks();
 
     while (1) {

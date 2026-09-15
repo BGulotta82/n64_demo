@@ -129,31 +129,31 @@ void engine_update(game_state_t *state, float dt) {
 
     joypad_poll();
     
-    if (state->match_state == STATE_GAME_OVER ||
+    if (state->match_state == STATE_WAITING_TO_START ||
+        state->match_state == STATE_GAME_OVER ||
         state->match_state == STATE_LEVEL_CLEARED) {
         for (int i = 0; i < MAX_PLAYERS; i++) {
             input_update(&state->input[i], i);
             if ((state->match_state == STATE_GAME_OVER || 
+                 state->match_state == STATE_WAITING_TO_START ||
                  state->players[i].meta.state & ACTIVE) && 
-                 state->input[i].active_actions & ACTION_START) {
-                int next_level_index = state->level_index;
-                if (state->match_state == STATE_LEVEL_CLEARED) {
+                 state->input[i].active_actions & ACTION_START) {                
+                    int next_level_index = state->level_index;
+                
+                    if (state->match_state == STATE_LEVEL_CLEARED) {
                     state->level_index++;
                     next_level_index = state->level_index;
                 }
+
                 load_stage_by_index(state, next_level_index);
-                return;
+                state->match_state = STATE_PLAYING;
+                break;
             }
         }
 
-        return;
-    }
-
-    if (state->match_state == STATE_STAGE_INTRO) {
-        // Advance to active gameplay so the next frame runs normally
-        state->match_state = STATE_PLAYING;    
-        state->frame++;
-        return;
+        if (state->match_state != STATE_PLAYING){
+            return;
+        }
     }
 
     int active_players = 0;
@@ -172,10 +172,6 @@ void engine_update(game_state_t *state, float dt) {
 
         if (!(state->players[i].meta.state & ACTIVE)) {
             continue;
-        }
-
-        if (state->match_state == STATE_WAITING_TO_START) {
-            state->match_state =  STATE_PLAYING;
         }
 
         active_players++;

@@ -75,6 +75,8 @@ void spawn_projectile_from_character(const character *self) {
 
     projectile_t p = {0};
     
+    p.meta.owner = self;
+
     // Determine direction based on flip flags or velocity (e.g., facing left vs right)
     float direction = (self->physics.facing_direction == FACING_LEFT) ? -1.0f : 1.0f;
     float spawn_offset_x = (direction > 0) ? self->meta.width : -16.0f; // Shift spawn past bounding box

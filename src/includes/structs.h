@@ -69,7 +69,8 @@ typedef struct {
     int current_anim_frame_index;    // 0, 1, 2, 3... (Abstract frame index)
     const animation_profile_t *anim_profile;
     character_state state;                
-    character_type type;      
+    character_type type;    
+    int id;  
 } character_meta;
 
 typedef struct {
@@ -108,7 +109,7 @@ typedef struct {
     int damage;             // How much health to subtract on hit
     int lifetime_frames;    // Despawn timer so missed shots don't fly forever
     bool pierces;           // Does it disappear on hit, or go through targets?
-    
+    const character *owner;    
     // Physics parameters (if not handled externally)
     float speed;            
     float gravity_scale;    // 0.0 for magic, 1.0 for arrows

@@ -166,7 +166,7 @@ void engine_update(game_state_t *state, float dt) {
         bool player_active = (state->players[i].meta.state & ACTIVE);
 
         if (!player_active){
-            check_new_player_spawn(&state->players[i], state->players, &state->level, &state->input[i]);
+            check_new_player_spawn(&state->players[i], state->players, &state->level, &state->input[i], i);
             player_spawned = state->players[i].meta.state & SPAWNED; 
         }
 
@@ -266,7 +266,7 @@ void engine_update(game_state_t *state, float dt) {
     state->frame++;
 }
 
-void check_new_player_spawn(character *self, character *players, level_t *level, input_state *input)
+void check_new_player_spawn(character *self, character *players, level_t *level, input_state *input, int id)
 {
 
     if (input->active_actions & ACTION_START && 
@@ -274,11 +274,11 @@ void check_new_player_spawn(character *self, character *players, level_t *level,
       !(self->meta.state & SPAWNED))
     {
         //character_type type = (rand() % 4) + 1; 
-        //character_type type = ELF; 
+        character_type type = ELF; 
         //character_type type = WIZARD;
-        character_type type = DWARF;
+        //character_type type = DWARF;
 
-        character_init(self, type, false);
+        character_init(self, type, false, id);
         self->meta.state |= ACTIVE;
         self->meta.state |= SPAWNED;
         spawn_new_player(self, players, level);
@@ -671,6 +671,13 @@ void check_projectile_collisions(game_state_t *state)
 {
     int proj_count = get_projectile_count();
 
+    // Determine the viewport configuration layout structure safely
+    int active_count = 0;
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        if (state->players[i].meta.state & ACTIVE) active_count++;
+    }
+    int config_idx = active_count - 1; 
+
     for (int i = proj_count - 1; i >= 0; i--)
     {
         projectile_t *proj = get_projectile_at(i);
@@ -737,13 +744,31 @@ void check_projectile_collisions(game_state_t *state)
                 // AABB Check
                 if (proj_x1 < e_x2 && proj_x2 > e_x1 && proj_y1 < e_y2 && proj_y2 > e_y1)
                 {
+                    int player_id = proj->meta.owner->meta.id;
 
-                    // UNIQUE HIT REGISTER CHECK: Match projectile's origin ID with enemy tracking
-                    if (enemy->meta.last_hit_by_attack_id != proj->meta.damage_source_id)
+                    // 1. Get the player's world-space camera bounds
+                    float cam_left   = (float)cameras[player_id].x;
+                    float cam_right  = (float)(cameras[player_id].x + cameras[player_id].width);
+                    float cam_top    = (float)cameras[player_id].y;
+                    float cam_bottom = (float)(cameras[player_id].y + cameras[player_id].height);
+
+                    // 2. Calculate the enemy's center in world-space
+                    float enemy_center_x = enemy->x + ((float)enemy->meta.width / 2.0f);
+                    float enemy_center_y = enemy->y + ((float)enemy->meta.height / 2.0f);
+
+                    // 3. REFINED VIEWPORT BOUNDS CHECK (Pure World Space)
+                    bool is_in_viewport = (enemy_center_x >= cam_left  && 
+                                        enemy_center_x <= cam_right &&
+                                        enemy_center_y >= cam_top   && 
+                                        enemy_center_y <= cam_bottom);
+
+
+                    if (is_in_viewport)
                     {
+                        // Valid visible hit! Apply damage safely
                         enemy->meta.last_hit_by_attack_id = proj->meta.damage_source_id;
-
                         enemy->meta.health -= proj->meta.damage;
+                                
                         if (enemy->meta.health <= 0)
                         {
                             enemy->meta.health = 0;
@@ -753,39 +778,37 @@ void check_projectile_collisions(game_state_t *state)
                         {
                             // Enemy Knockback
                             float proj_center_x = proj->x + ((float)proj->meta.width / 2.0f);
-                            float e_center_x = enemy->x + ((float)enemy->meta.width / 2.0f);
-                            enemy->physics.vx = (e_center_x > proj_center_x) ? 45.0f : -45.0f;
+                            enemy->physics.vx = (enemy_center_x > proj_center_x) ? 45.0f : -45.0f;
                             enemy->physics.vy = -20.0f;
                             enemy->physics.state &= ~GROUNDED;
                         }
+
                         hit_something = true;
                     }
-                    if (hit_something)
-                        break;
                 }
             }
         }
 
         if (!hit_something)
         {
-            // // Convert pixel bounds to tile index coordinates
-            // int tile_x1 = (int)proj_x1 / TILE_SIZE;
-            // int tile_y1 = (int)proj_y1 / TILE_SIZE;
-            // int tile_x2 = (int)proj_x2 / TILE_SIZE;
-            // int tile_y2 = (int)proj_y2 / TILE_SIZE;
+            // Convert pixel bounds to tile index coordinates
+            int tile_x1 = (int)proj_x1 / TILE_SIZE;
+            int tile_y1 = (int)proj_y1 / TILE_SIZE;
+            int tile_x2 = (int)proj_x2 / TILE_SIZE;
+            int tile_y2 = (int)proj_y2 / TILE_SIZE;
 
-            // // Sample the map array data at the 4 corners of the bounding box.
-            // // Adjust 'state->map_data' if your map buffer name is different.
-            // uint8_t tl = get_tile_at(state->level.map_data, tile_x1, tile_y1); // Top-Left
-            // uint8_t tr = get_tile_at(state->level.map_data, tile_x2, tile_y1); // Top-Right
-            // uint8_t bl = get_tile_at(state->level.map_data, tile_x1, tile_y2); // Bottom-Left
-            // uint8_t br = get_tile_at(state->level.map_data, tile_x2, tile_y2); // Bottom-Right
+            // Sample the map array data at the 4 corners of the bounding box.
+            // Adjust 'state->map_data' if your map buffer name is different.
+            uint8_t tl = get_tile_at(state->level.map_data, tile_x1, tile_y1); // Top-Left
+            uint8_t tr = get_tile_at(state->level.map_data, tile_x2, tile_y1); // Top-Right
+            uint8_t bl = get_tile_at(state->level.map_data, tile_x1, tile_y2); // Bottom-Left
+            uint8_t br = get_tile_at(state->level.map_data, tile_x2, tile_y2); // Bottom-Right
 
-            // // Assuming tile index '0' is empty space/air, and values >= 1 are solid structures
-            // if (tl != 0 || tr != 0 || bl != 0 || br != 0)
-            // {
-            //     hit_something = true;
-            // }
+            // Assuming tile index '0' is empty space/air, and values >= 1 are solid structures
+            if (tl == 2 || tr == 2 || bl == 2 || br == 2)
+            {
+                hit_something = true;
+            }
         }
 
         // If it hit a target, delete the projectile (assuming non-piercing)

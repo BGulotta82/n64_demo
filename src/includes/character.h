@@ -15,7 +15,7 @@
 extern float physics_constants[NUMBER_OF_CHARACTER_TYPES][9];
 
 
-void character_init(character *character, character_type type, bool is_enemy);
+void character_init(character *character, character_type type, bool is_enemy, int id);
 void character_update(character *self, character *players, input_state *input, uint8_t *map_data, float dt);
 void check_no_input(input_state *input, character *character);
 void check_grounded(character *character, uint8_t *map_data);

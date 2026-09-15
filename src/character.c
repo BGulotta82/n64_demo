@@ -41,10 +41,11 @@ float physics_constants[NUMBER_OF_CHARACTER_TYPES][9]= {
     { 2.0f, 42.0f,  210.0f, 800.0f,  175.0f, 150.0f, 18.0f, 0.24f, 320.0f }
 };
 
-void character_init(character *character, character_type type, bool is_enemy) {
+void character_init(character *character, character_type type, bool is_enemy, int id) {
     if(!character) return;
 
     // init meta
+    character->meta.id = id;
     character->meta.anim_profile = &character_animation_profiles[type];
     character->meta.state = CHARACTER_NONE;
     character->meta.type = type;

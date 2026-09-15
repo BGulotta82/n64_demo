@@ -62,7 +62,7 @@ void spawn_entities(level_t *level, character *enemies){
                 
                 // FIXED LOGICAL CHRONOLOGY: Execute character_init FIRST so the custom meta sizes
                 // are extracted and assigned to the struct variables BEFORE calculating position parameters!
-                character_init(enemy, enemy_type, true);
+                character_init(enemy, enemy_type, true, enemy_index);
 
                 // Calculate spawn boundaries safely
                 enemy->x = (float)(x * TILE_SIZE);

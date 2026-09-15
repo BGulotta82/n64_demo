@@ -18,16 +18,24 @@ void init_enemy_registry(int initial_capacity) {
     g_enemies.data = (character *)malloc(initial_capacity * sizeof(character));
 }
 
-void spawn_enemy(character new_enemy) {
-    // If we hit capacity limits, dynamically grow the array (doubling strategy)
+// Take a pointer. Use 'const' because we are only reading the data, not changing it.
+bool spawn_enemy(const character *new_enemy) {
     if (g_enemies.count >= g_enemies.capacity) {
-        g_enemies.capacity = (g_enemies.capacity == 0) ? 16 : g_enemies.capacity * 2;
-        g_enemies.data = (character *)realloc(g_enemies.data, g_enemies.capacity * sizeof(character));
+        int next_capacity = (g_enemies.capacity == 0) ? 16 : g_enemies.capacity * 2;
+        
+        // Safe realloc check
+        character *temp = (character *)realloc(g_enemies.data, next_capacity * sizeof(character));
+        if (temp == NULL) return false; // Out of memory! Safe abort.
+
+        g_enemies.data = temp;
+        g_enemies.capacity = next_capacity;
     }
 
-    // Push the new projectile to the back of the active list
-    g_enemies.data[g_enemies.count] = new_enemy;
+    // Dereference the pointer (*) to copy the structural contents into the array
+    g_enemies.data[g_enemies.count] = *new_enemy; 
     g_enemies.count++;
+    
+    return true; // Success
 }
 
 void destroy_enemy(int index) {
@@ -48,7 +56,7 @@ void cleanup_enemy_registry(void) {
     g_enemies.capacity = 0;
 }
 
-void load_level_binary(const char *dfs_path, level_t *level) {
+void load_level_binary(const char *dfs_path, level_t *level, int num_players) {
     int fd = dfs_open(dfs_path);
     if (fd < 0) {
         printf("ERROR: Failed to open level file at %s\n", dfs_path);
@@ -64,10 +72,10 @@ void load_level_binary(const char *dfs_path, level_t *level) {
         printf("WARNING: Expected %d tiles, but only read %d!\n", TOTAL_TILES, (int)bytes_read);
     }
 
-    spawn_entities(level);
+    spawn_entities(level, num_players);
 }
 
-void spawn_entities(level_t *level){
+void spawn_entities(level_t *level, int num_players){
     level->number_of_enemies = 0;
 
     for (int y = 0; y < MAP_HEIGHT; y++) {
@@ -85,20 +93,45 @@ void spawn_entities(level_t *level){
             }
             else if (tile_id == ENEMY_SPAWN) {
 
-                character_type enemy_type = (rand() % 2) + 4;
-                character enemy = {0};
+                // spawn x number of entities at the enemy spawn point 
+                // based on how many players are in the game
+                if (num_players == 0)
+                    num_players = 1;
 
-                character_init(&enemy, enemy_type, true, level->number_of_enemies++);
+                int enemies_to_spawn = 1;
+                switch(num_players) {
+                    case 1:
+                        enemies_to_spawn = 3;
+                        break;
+                    case 2:
+                        enemies_to_spawn = 6;
+                        break;
+                    case 3:
+                        enemies_to_spawn = 8;
+                        break;
+                    case 4:
+                        enemies_to_spawn = 10;
+                        break;
+                }
 
-                // Calculate spawn boundaries safely
-                enemy.x = (float)(x * TILE_SIZE);
-                // This ensures 16px Goombas and 8px Skeletons sit perfectly on top of the map tiles.
-                enemy.y = (float)(y * TILE_SIZE) - ((float)enemy.meta.height - (float)TILE_SIZE); 
-                
-                enemy.meta.state |= ACTIVE;
-                enemy.physics.state |= MOVING_LEFT;
+                for (int i = 0; i < enemies_to_spawn; i++) {
+                    character enemy = {0};
+                    character_type enemy_type = (rand() % 2) + 4;
 
-                spawn_enemy(enemy);
+                    // Use current total count for ID
+                    character_init(&enemy, enemy_type, true, level->number_of_enemies);
+
+                    enemy.x = (float)(x * TILE_SIZE);
+                    enemy.y = (float)(y * TILE_SIZE) - ((float)enemy.meta.height - (float)TILE_SIZE); 
+                    
+                    enemy.meta.state |= ACTIVE;
+                    enemy.physics.state |= MOVING_LEFT;
+
+                    // Pass the address to avoid pushing the entire struct on the stack
+                    if (spawn_enemy(&enemy)) {
+                        level->number_of_enemies++;
+                    }
+                }
 
                 // Clear the map spot back to Air (0) so it doesn't block movement
                 level->map_data[y * MAP_WIDTH + x] = 0;

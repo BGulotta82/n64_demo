@@ -627,6 +627,9 @@ void check_melee_collisions(game_state_t *state)
                             enemy->meta.health = 0;
                             enemy->meta.state &= ~ACTIVE;
                             destroy_enemy(e);
+                            enemy_count--; // The total pool shrank by one
+                            e--;       
+
                         }
                         else
                         {
@@ -773,6 +776,8 @@ void check_projectile_collisions(game_state_t *state)
                             enemy->meta.health = 0;
                             enemy->meta.state &= ~ACTIVE;
                             destroy_enemy(e);
+                            num_enemies--; // The total pool shrank by one
+                            e--;       
                         }
                         else
                         {
@@ -968,28 +973,33 @@ void load_stage_by_index(game_state_t *state, int index) {
         index = 0; // Safe fallback boundary clamp
     }
     
+    bool survivor = false;
+    int num_active_players = 0;
+
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+         if(state->players[i].meta.state & ACTIVE){
+            survivor = true;
+            num_active_players++;
+         }
+    }
+    
     cleanup_enemy_registry();
 
     state->level_index = index;
     
     const char *target_file = level_playlist[index].filename;
     float target_time       = level_playlist[index].time_limit;
-    load_level_binary(target_file, &state->level);
+    load_level_binary(target_file, &state->level, num_active_players);
 
     state->level_timer = target_time; 
     
-    int num_active_players = 0;
-    bool survivor = false;
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         bool player_active = state->players[i].meta.state & ACTIVE;
-        if (player_active)
-            num_active_players++;
 
         // If we just cleared a level and this specific player survived (is active), 
         // DO NOT kill them. Keep their active state and health intact!
         if (previous_state == STATE_LEVEL_CLEARED && player_active) {
-            survivor = true;
             // Stop horizontal speeds so they don't slide into the new stage uncontrollably
             state->players[i].physics.vx = 0.0f;
             state->players[i].physics.vy = 0.0f;
@@ -1029,8 +1039,5 @@ void load_stage_by_index(game_state_t *state, int index) {
             state->level.spawn_x,         // Safe spawn origin values
             state->level.spawn_y
         );
-    }
-
-    // TODO: spawn the initial x enemies on the screens based on num_active_players
-    
+    }    
 }

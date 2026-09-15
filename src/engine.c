@@ -133,21 +133,19 @@ void engine_update(game_state_t *state, float dt) {
     
     if (state->match_state == STATE_GAME_OVER ||
         state->match_state == STATE_LEVEL_CLEARED) {
-        for (int i = 0; i < MAX_PLAYERS; i++) {
-            input_update(&state->input[i], i);
-            if ((state->match_state == STATE_GAME_OVER ||
-                 state->players[i].meta.state & ACTIVE) && 
-                 state->input[i].active_actions & ACTION_START) {                
-                    int next_level_index = state->level_index;
-                
-                    if (state->match_state == STATE_LEVEL_CLEARED) {
-                        state->level_index++;
-                        next_level_index = state->level_index;
-                        state->match_state = STATE_PLAYING;
-                    }
+        
+        input_update(&state->input[0], 0);
+        if (state->input[0].active_actions & ACTION_START) {
+            int next_level_index = state->level_index;
+            match_state_t prev_match_state = state->match_state; 
+            if (state->match_state == STATE_LEVEL_CLEARED) {
+                next_level_index++;
+            }    
 
-                    load_stage_by_index(state, next_level_index);
-                    return;
+            load_stage_by_index(state, next_level_index);
+
+            if (prev_match_state == STATE_LEVEL_CLEARED) {
+                state->match_state = STATE_PLAYING;
             }
         }
 

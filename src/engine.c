@@ -45,12 +45,12 @@ const anim_config_t character_anims[CHAR_TYPE_MAX][NUMBER_OF_ANIMATION_STATES] =
         [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0, .hitbox_start_frame = 0, .hitbox_end_frame = 0  } // Duration 0: Velocity handles this explicitly
     },
     [WIZARD] = {
-        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
+        [ANIM_IDLE]   = { .frame_count = 23,  .frame_duration = 8, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
         [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
         [ANIM_ATTACK] = 
         {
-            .frame_count = 12, .frame_duration = 4, 
-            .hitbox_start_frame = 8, .hitbox_end_frame = 8, // Single frame trigger to spawn projectile_t
+            .frame_count = 12, .frame_duration = 2, 
+            .hitbox_start_frame = 3, .hitbox_end_frame = 3, // Single frame trigger to spawn projectile_t
             .hitbox = {
                 .style = HITBOX_STYLE_PROJECTILE,
                 .width = 8.0f, .height = 8.0f, // Small spawning point
@@ -123,8 +123,6 @@ void engine_init(game_state_t *state) {
     for (int i = 0; i < MAX_PLAYERS; i++) {
         input_init(&state->input[i]);
     }
-
-    load_stage_by_index(state, 0);
 }
 
 void engine_update(game_state_t *state, float dt) {
@@ -132,21 +130,18 @@ void engine_update(game_state_t *state, float dt) {
     joypad_poll();
     
     if (state->match_state == STATE_GAME_OVER ||
-        state->match_state == STATE_LEVEL_CLEARED) {
+        state->match_state == STATE_LEVEL_CLEARED ||
+        state->match_state == STATE_WAITING_TO_START) {
         
         input_update(&state->input[0], 0);
         if (state->input[0].active_actions & ACTION_START) {
             int next_level_index = state->level_index;
-            match_state_t prev_match_state = state->match_state; 
             if (state->match_state == STATE_LEVEL_CLEARED) {
                 next_level_index++;
             }    
 
             load_stage_by_index(state, next_level_index);
-
-            if (prev_match_state == STATE_LEVEL_CLEARED) {
-                state->match_state = STATE_PLAYING;
-            }
+            state->match_state = STATE_PLAYING;
         }
 
         return;
@@ -164,8 +159,6 @@ void engine_update(game_state_t *state, float dt) {
         if (!player_active){
             check_new_player_spawn(&state->players[i], state->players, &state->level, &state->input[i], i);
             player_spawned = state->players[i].meta.state & SPAWNED; 
-            if (player_spawned && state->match_state != STATE_PLAYING)
-                state->match_state = STATE_PLAYING;
         }
 
         if (!(state->players[i].meta.state & ACTIVE)) {

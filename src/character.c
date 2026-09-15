@@ -94,7 +94,7 @@ void character_init(character *character, character_type type, bool is_enemy, in
             character->meta.width = 20.0f;
             character->meta.height = 24.0f;
             character->meta.health = 5;
-            character->meta.damage = 1;
+            character->meta.damage = 2;
         break;
         case GOOMBA:
             character->meta.health = 2;

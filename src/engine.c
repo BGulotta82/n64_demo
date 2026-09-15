@@ -68,8 +68,8 @@ const anim_config_t character_anims[CHAR_TYPE_MAX][NUMBER_OF_ANIMATION_STATES] =
             .hitbox_start_frame = 5, .hitbox_end_frame = 8,
             .hitbox = {
                 .style = HITBOX_STYLE_MELEE_SWEEP,
-                .width = 20.0f, .height = 101.0f, // Large sword swipe
-                .offset_x = 16.0f, .offset_y = 0.0f
+                .width = 20.0f, .height = 10.0f, // Large sword swipe
+                .offset_x = 20.0f, .offset_y = 7.0f
             }
         },
         [ANIM_JUMP]   = { .frame_count = 5,  .frame_duration = 0, .hitbox_start_frame = 0, .hitbox_end_frame = 0  } // Duration 0: Velocity handles this explicitly

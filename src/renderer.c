@@ -432,15 +432,16 @@ void draw_map_tiles(const level_t *level, const camera_t *active_cam, int off_x,
     rdpq_mode_tlut(TLUT_RGBA16);
     rdpq_tex_upload_tlut(sprite_get_palette(level_tilesheet), 0, 16);
 
-    // 1. Explicitly use floorf to convert the camera floats safely to tile tracking indices
+    // Convert camera floats safely to tile tracking integers once
     int cam_x_floor = (int)floorf(active_cam->x);
     int cam_y_floor = (int)floorf(active_cam->y);
 
     int start_x = cam_x_floor / TILE_SIZE;
     int start_y = cam_y_floor / TILE_SIZE;
     
-    int end_x = (int)floorf(active_cam->x + (float)view_w) / TILE_SIZE + 2;
-    int end_y = (int)floorf(active_cam->y + (float)view_h) / TILE_SIZE + 2;
+    // The loop inherently grabs exactly what is visible (plus padding for scrolling offsets)
+    int end_x = (cam_x_floor + view_w) / TILE_SIZE + 2;
+    int end_y = (cam_y_floor + view_h) / TILE_SIZE + 2;
 
     // Safety clamps on map constraints to prevent off-boundary array reads
     if (start_x < 0) start_x = 0;
@@ -448,32 +449,26 @@ void draw_map_tiles(const level_t *level, const camera_t *active_cam, int off_x,
     if (end_x > MAP_WIDTH)  end_x = MAP_WIDTH;
     if (end_y > MAP_HEIGHT) end_y = MAP_HEIGHT;
 
+    // Pre-calculate screen space alignment anchors outside the heavy loops
+    int base_screen_x = off_x - cam_x_floor;
+    int base_screen_y = off_y - cam_y_floor;
+    int hslices = level_tilesheet->hslices;
+
     for (int y = start_y; y < end_y; y++) {
+        int screen_y = (y * TILE_SIZE) + base_screen_y;
+        int map_row_offset = y * MAP_WIDTH;
+
         for (int x = start_x; x < end_x; x++) {
-            uint8_t tile_id = level->map_data[y * MAP_WIDTH + x];
-            if (tile_id == 0) continue;
+            uint8_t tile_id = level->map_data[map_row_offset + x];
+            if (tile_id == 0) continue; // Skip empty space air tiles
 
             int tile_index = tile_id - 1;
-            int tile_x = (tile_index % level_tilesheet->hslices) * TILE_SIZE;
-            int tile_y = (tile_index / level_tilesheet->hslices) * TILE_SIZE;
+            
+            // Calculate source texture coordinates
+            int tile_x = (tile_index % hslices) * TILE_SIZE;
+            int tile_y = (tile_index / hslices) * TILE_SIZE;
 
-            // =========================================================================
-            // --- FIXED: APPLY CALCULATED FLOOR VALUES TO SCREEN SPACE SHIFTS ---
-            // =========================================================================
-            // Use the pre-calculated floor positions instead of subtracting raw floats.
-            // This prevents subpixel truncation drift on the N64 rasterizer.
-            int screen_x = (x * TILE_SIZE) - cam_x_floor;
-            int screen_y = (y * TILE_SIZE) - cam_y_floor;
-
-            // Add physical viewport offsets to position tiles into the correct quadrant cell
-            screen_x += off_x;
-            screen_y += off_y;
-
-            // Strict Viewport Culling
-            if (screen_x + TILE_SIZE < off_x  || screen_x > off_x + view_w ||
-                screen_y + TILE_SIZE < off_y || screen_y > off_y + view_h) {
-                continue;
-            }
+            int screen_x = (x * TILE_SIZE) + base_screen_x;
 
             rdpq_blitparms_t parms = {
                 .s0 = tile_x,
@@ -482,10 +477,13 @@ void draw_map_tiles(const level_t *level, const camera_t *active_cam, int off_x,
                 .height = TILE_SIZE,
             };
 
-            // Blit directly to the hardware scissored quadrant box matrix
+            // Blit directly to the hardware matrix
             rdpq_sprite_blit(level_tilesheet, screen_x, screen_y, &parms);
         }
     }
+
+    // Reset scissor back to full screen bounds when finished so UI renders properly
+    rdpq_set_scissor(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 }
 
 void draw_hud(const game_state_t *state) {

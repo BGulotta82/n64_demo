@@ -3,6 +3,15 @@
 static projectile_registry_t g_projectiles = { NULL, 0, 0 };
 extern anim_config_t character_anims[CHAR_TYPE_MAX][NUMBER_OF_ANIMATION_STATES];
 
+int get_projectile_count(void) {
+    return g_projectiles.count;
+}
+
+projectile_t* get_projectile_at(int index) {
+    if (index < 0 || index >= g_projectiles.count) return NULL;
+    return &g_projectiles.data[index];
+}
+
 void init_projectile_registry(int initial_capacity) {
     g_projectiles.capacity = initial_capacity;
     g_projectiles.count = 0;
@@ -116,13 +125,4 @@ void spawn_projectile_from_character(const character *self) {
     }
 
     spawn_projectile(p);
-}
-
-int get_projectile_count(void) {
-    return g_projectiles.count;
-}
-
-projectile_t* get_projectile_at(int index) {
-    if (index < 0 || index >= g_projectiles.count) return NULL;
-    return &g_projectiles.data[index];
 }

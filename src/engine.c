@@ -180,31 +180,31 @@ void engine_update(game_state_t *state, float dt) {
     }
 
     // 2. Update your enemies using simulated AI inputs
-    for (int i = 0; i < MAX_ENEMIES; i++) {
-        if (!(state->enemies[i].meta.state & ACTIVE)) continue;
+    int num_enemies = get_enemy_count();
+    state->total_enemies_left = 0;
+    
+    for (int i = 0; i < num_enemies; i++) {
+        
+        character* enemy = get_enemy_at(i);
 
-      // Create a local, lightweight input instance on the stack for this loop iteration
+        if (!(enemy->meta.state & ACTIVE)) continue;
+
+        state->total_enemies_left++;
+
+        // Create a local, lightweight input instance on the stack for this loop iteration
         input_state simulated_input;
         simulated_input.active_actions = 0; // Clear it to zero clean slate
 
-        simulate_enemy_ai(&state->enemies[i], state, &simulated_input, dt);
+        simulate_enemy_ai(enemy, state, &simulated_input, dt);
 
         //Run them through the exact same update system!
         //Pass the player array down so enemies can physically interact with players
-        character_update(&state->enemies[i], NULL, &simulated_input, state->level.map_data, dt);
+        character_update(enemy, NULL, &simulated_input, state->level.map_data, dt);
     }
 
      // 2. Count down your level match timer
     if (state->level_timer > 0.0f && state->match_state == STATE_PLAYING) {
         state->level_timer -= dt;
-    }
-
-    // 3. Count remaining active enemies
-    state->total_enemies_left = 0;
-    for (int i = 0; i < MAX_ENEMIES; i++) {
-        if (state->enemies[i].meta.state & ACTIVE) {
-            state->total_enemies_left++;
-        }
     }
 
     update_projectiles(dt);
@@ -254,9 +254,12 @@ void engine_update(game_state_t *state, float dt) {
     }
 
     // Process all active enemies
-    for (int i = 0; i < MAX_ENEMIES; i++) {
-        if (state->enemies[i].meta.state & ACTIVE) {
-            update_character_animation_state(&state->enemies[i]);
+    int enemy_count = get_enemy_count();
+    for (int i = 0; i < enemy_count; i++) {
+        character* enemy = get_enemy_at(i);
+
+        if (enemy->meta.state & ACTIVE) {
+            update_character_animation_state(enemy);
         }
     }
     state->frame++;
@@ -501,8 +504,10 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
     // 8. ANTI-STACKING CROWD CONTROL: Keep spacing between entities clean
     // =========================================================================
     float personal_space_buffer = 24.0f; 
-    for (int e = 0; e < MAX_ENEMIES; e++) {
-        const character *other = &state->enemies[e];
+    int enemy_count = get_enemy_count();
+
+    for (int e = 0; e < enemy_count; e++) {
+        const character *other = get_enemy_at(e);
         if (other == enemy || !(other->meta.state & ACTIVE) || !(other->meta.state & SPAWNED)) continue;
 
         if (fabsf(other->y - enemy->y) < 16.0f) {
@@ -592,9 +597,11 @@ void check_melee_collisions(game_state_t *state)
         rect_t attack_box;
         bool is_attacking = get_character_secondary_hitbox(player, &attack_box);
 
-        for (int e = 0; e < MAX_ENEMIES; e++)
-        {
-            character *enemy = &state->enemies[e];
+        int enemy_count = get_enemy_count();
+
+        for (int e = 0; e < enemy_count; e++)
+        {            
+            character *enemy = get_enemy_at(e);
             if (!(enemy->meta.state & ACTIVE))
                 continue;
 
@@ -619,6 +626,7 @@ void check_melee_collisions(game_state_t *state)
                         {
                             enemy->meta.health = 0;
                             enemy->meta.state &= ~ACTIVE;
+                            destroy_enemy(e);
                         }
                         else
                         {
@@ -718,10 +726,12 @@ void check_projectile_collisions(game_state_t *state)
         }
         else
         {
+            int num_enemies = get_enemy_count();
+
             // PLAYER PROJECTILE VS ENEMIES
-            for (int e = 0; e < MAX_ENEMIES; e++)
-            {
-                character *enemy = &state->enemies[e];
+            for (int e = 0; e < num_enemies; e++)
+            {                
+                character *enemy = get_enemy_at(e);
                 if (!(enemy->meta.state & ACTIVE))
                     continue;
 
@@ -762,6 +772,7 @@ void check_projectile_collisions(game_state_t *state)
                         {
                             enemy->meta.health = 0;
                             enemy->meta.state &= ~ACTIVE;
+                            destroy_enemy(e);
                         }
                         else
                         {
@@ -957,18 +968,28 @@ void load_stage_by_index(game_state_t *state, int index) {
         index = 0; // Safe fallback boundary clamp
     }
     
+    cleanup_enemy_registry();
+
     state->level_index = index;
     
     const char *target_file = level_playlist[index].filename;
     float target_time       = level_playlist[index].time_limit;
-    load_level_binary(target_file, &state->level, state->enemies);
+    load_level_binary(target_file, &state->level);
 
     state->level_timer = target_time; 
     
+    int num_active_players = 0;
+    bool survivor = false;
+
     for (int i = 0; i < MAX_PLAYERS; i++) {
+        bool player_active = state->players[i].meta.state & ACTIVE;
+        if (player_active)
+            num_active_players++;
+
         // If we just cleared a level and this specific player survived (is active), 
         // DO NOT kill them. Keep their active state and health intact!
-        if (previous_state == STATE_LEVEL_CLEARED && state->players[i].meta.state & ACTIVE) {
+        if (previous_state == STATE_LEVEL_CLEARED && player_active) {
+            survivor = true;
             // Stop horizontal speeds so they don't slide into the new stage uncontrollably
             state->players[i].physics.vx = 0.0f;
             state->players[i].physics.vy = 0.0f;
@@ -976,7 +997,7 @@ void load_stage_by_index(game_state_t *state, int index) {
             state->players[i].meta.coyote_frames = 0;
             state->players[i].meta.jump_buffer_frames = 0;
             state->players[i].meta.invincibility_frames = 0;
-            state->players[i].meta.health = 3;
+            spawn_new_player(&state->players[i], state->players, &state->level);
         } 
         else {
             // If it was a Game Over, initial boot, or if the player was dead, 
@@ -984,20 +1005,6 @@ void load_stage_by_index(game_state_t *state, int index) {
             state->players[i].meta.state &= ~ACTIVE;
             state->players[i].meta.state &= ~SPAWNED;
         }
-    }
-
-    // =========================================================================
-    // --- REPOSITION LIVING SURVIVORS SECURELY ---
-    // =========================================================================
-    // Now that the level's fresh state->level.spawn_x and spawn_y are loaded,
-    // explicitly position your surviving heroes using your existing safety logic.
-    bool survivor = false;
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (!(state->players[i].meta.state & ACTIVE)) continue;
-
-        survivor = true;
-        // Force a clean positioning refresh using your existing multi-player logic
-        spawn_new_player(&state->players[i], state->players, &state->level);
     }
 
     if (!survivor) 
@@ -1023,4 +1030,7 @@ void load_stage_by_index(game_state_t *state, int index) {
             state->level.spawn_y
         );
     }
+
+    // TODO: spawn the initial x enemies on the screens based on num_active_players
+    
 }

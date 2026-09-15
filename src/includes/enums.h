@@ -73,4 +73,11 @@ typedef enum {
     ACTION_ATTACK     = 1 << 5,
     ACTION_START      = 1 << 6
 } game_action;
+
+typedef enum {
+    PLAYER_SPAWN = 101,
+    ENEMY_SPAWN = 102,
+    BOSS_SPAWN = 103
+} tile_identifiers;
+
 #endif

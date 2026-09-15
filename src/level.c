@@ -1,19 +1,54 @@
 #include "level.h"
 
-#define PLAYER_SPAWN (101)
 
-// --- THE LOGIC TRANSLATION TABLE ---
-uint8_t tile_to_enemy_map[256] = {
-    [101] = PLAYER_SPAWN,
-    [102] = KNIGHT,
-    [103] = ELF,
-    [104] = WIZARD,
-    [105] = DWARF,
-    [106] = GOOMBA,
-    [107] = SKELETON
-};
+static enemy_registry_t g_enemies = { NULL, 0, 0 };
 
-void load_level_binary(const char *dfs_path, level_t *level, character *enemies) {
+int get_enemy_count(void) {
+    return g_enemies.count;
+}
+
+character* get_enemy_at(int index) {
+    if (index < 0 || index >= g_enemies.count) return NULL;
+    return &g_enemies.data[index];
+}
+
+void init_enemy_registry(int initial_capacity) {
+    g_enemies.capacity = initial_capacity;
+    g_enemies.count = 0;
+    g_enemies.data = (character *)malloc(initial_capacity * sizeof(character));
+}
+
+void spawn_enemy(character new_enemy) {
+    // If we hit capacity limits, dynamically grow the array (doubling strategy)
+    if (g_enemies.count >= g_enemies.capacity) {
+        g_enemies.capacity = (g_enemies.capacity == 0) ? 16 : g_enemies.capacity * 2;
+        g_enemies.data = (character *)realloc(g_enemies.data, g_enemies.capacity * sizeof(character));
+    }
+
+    // Push the new projectile to the back of the active list
+    g_enemies.data[g_enemies.count] = new_enemy;
+    g_enemies.count++;
+}
+
+void destroy_enemy(int index) {
+    if (index < 0 || index >= g_enemies.count) return;
+
+    // Fast Unordered Deletion: 
+    // Swap the dead element with the absolute last element in the array, then decrement count.
+    g_enemies.data[index] = g_enemies.data[g_enemies.count - 1];
+    g_enemies.count--;
+}
+
+void cleanup_enemy_registry(void) {
+    if (g_enemies.data) {
+        free(g_enemies.data);
+        g_enemies.data = NULL;
+    }
+    g_enemies.count = 0;
+    g_enemies.capacity = 0;
+}
+
+void load_level_binary(const char *dfs_path, level_t *level) {
     int fd = dfs_open(dfs_path);
     if (fd < 0) {
         printf("ERROR: Failed to open level file at %s\n", dfs_path);
@@ -29,13 +64,10 @@ void load_level_binary(const char *dfs_path, level_t *level, character *enemies)
         printf("WARNING: Expected %d tiles, but only read %d!\n", TOTAL_TILES, (int)bytes_read);
     }
 
-    spawn_entities(level, enemies);
+    spawn_entities(level);
 }
 
-void spawn_entities(level_t *level, character *enemies){
-    memset(enemies, 0, sizeof(character) * MAX_ENEMIES);
-
-    int enemy_index = 0;
+void spawn_entities(level_t *level){
     level->number_of_enemies = 0;
 
     for (int y = 0; y < MAP_HEIGHT; y++) {
@@ -49,34 +81,27 @@ void spawn_entities(level_t *level, character *enemies){
                 
                 // Clear out the marker so it acts as empty air
                 level->map_data[y * MAP_WIDTH + x] = 0;
-            }            
-            else if (tile_id > PLAYER_SPAWN && tile_to_enemy_map[tile_id] != 0) {
-                if (enemy_index >= MAX_ENEMIES) {
-                    level->map_data[y * MAP_WIDTH + x] = 0;
-                    continue;
-                }
+                break;
+            }
+            else if (tile_id == ENEMY_SPAWN) {
 
-                // Resolve the enum type dynamically from our configuration table
-                character_type enemy_type = (character_type)tile_to_enemy_map[tile_id];
-                character *enemy = &enemies[enemy_index];
-                
-                // FIXED LOGICAL CHRONOLOGY: Execute character_init FIRST so the custom meta sizes
-                // are extracted and assigned to the struct variables BEFORE calculating position parameters!
-                character_init(enemy, enemy_type, true, enemy_index);
+                character_type enemy_type = (rand() % 2) + 4;
+                character enemy = {0};
+
+                character_init(&enemy, enemy_type, true, level->number_of_enemies++);
 
                 // Calculate spawn boundaries safely
-                enemy->x = (float)(x * TILE_SIZE);
+                enemy.x = (float)(x * TILE_SIZE);
                 // This ensures 16px Goombas and 8px Skeletons sit perfectly on top of the map tiles.
-                enemy->y = (float)(y * TILE_SIZE) - ((float)enemy->meta.height - (float)TILE_SIZE); 
+                enemy.y = (float)(y * TILE_SIZE) - ((float)enemy.meta.height - (float)TILE_SIZE); 
                 
-                enemy->meta.state |= ACTIVE;
-                enemy->physics.state |= MOVING_LEFT;
+                enemy.meta.state |= ACTIVE;
+                enemy.physics.state |= MOVING_LEFT;
+
+                spawn_enemy(enemy);
 
                 // Clear the map spot back to Air (0) so it doesn't block movement
                 level->map_data[y * MAP_WIDTH + x] = 0;
-                level->number_of_enemies++;
-
-                enemy_index++;
             }
         }
     }

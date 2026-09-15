@@ -13,19 +13,6 @@ typedef struct {
     float move_y;            // Normalized -1.0 to 1.0
 } input_state;
 #pragma endregion
-#pragma region LEVEL_STRUCTS
-typedef struct {
-    uint8_t map_data[TOTAL_TILES];
-    
-    // Initial spawning coordinates for the players
-    float spawn_x;
-    float spawn_y;
-    
-    // You can easily add more level metadata here later:
-    // int music_id;
-    int number_of_enemies;
-} level_t;
-#pragma endregion
 #pragma region CAMERA_STRUCTS
 typedef struct {
     int screen_x;      // Physical pixel start position on the TV (X axis)
@@ -94,6 +81,25 @@ typedef struct {
     character_physics physics; // Physics properties for the character
 } character;
 #pragma endregion
+#pragma region LEVEL_STRUCTS
+typedef struct {
+    character *data; // Pointer to the dynamic array buffer
+    int count;          // Current number of active projectiles on screen
+    int capacity;       // Maximum slots currently allocated
+} enemy_registry_t;
+
+typedef struct {
+    uint8_t map_data[TOTAL_TILES];
+    
+    // Initial spawning coordinates for the players
+    float spawn_x;
+    float spawn_y;
+    
+    // You can easily add more level metadata here later:
+    // int music_id;
+    int number_of_enemies;
+} level_t;
+#pragma endregion
 #pragma region PROJECTILE_STRUCTS
 typedef struct {
     // Keep from character_meta
@@ -149,7 +155,6 @@ typedef struct {
     int frame;
     input_state input[MAX_PLAYERS];
     character players[MAX_PLAYERS];
-    character enemies[MAX_ENEMIES];
     level_t level; 
     int level_index; 
     float level_timer;

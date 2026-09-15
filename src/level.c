@@ -89,10 +89,8 @@ void spawn_entities(level_t *level, int num_players){
                 
                 // Clear out the marker so it acts as empty air
                 level->map_data[y * MAP_WIDTH + x] = 0;
-                break;
             }
             else if (tile_id == ENEMY_SPAWN) {
-
                 // spawn x number of entities at the enemy spawn point 
                 // based on how many players are in the game
                 if (num_players == 0)

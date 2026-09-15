@@ -143,6 +143,7 @@ void engine_update(game_state_t *state, float dt) {
                     if (state->match_state == STATE_LEVEL_CLEARED) {
                         state->level_index++;
                         next_level_index = state->level_index;
+                        state->match_state = STATE_PLAYING;
                     }
 
                     load_stage_by_index(state, next_level_index);
@@ -266,11 +267,10 @@ void engine_update(game_state_t *state, float dt) {
 
 void check_new_player_spawn(character *self, character *players, level_t *level, input_state *input, int id)
 {
-
     if (input->active_actions & ACTION_START && 
       !(self->meta.state & ACTIVE) && 
       !(self->meta.state & SPAWNED)) {
-        character_type type = (rand() % 4) + 1; 
+        character_type type = rand() % 4;
         character_init(self, type, false, id);
         self->meta.state |= ACTIVE;
         self->meta.state |= SPAWNED;

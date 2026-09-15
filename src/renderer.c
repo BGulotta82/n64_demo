@@ -451,7 +451,7 @@ void draw_map_tiles(const level_t *level, const camera_t *active_cam, int off_x,
     for (int y = start_y; y < end_y; y++) {
         for (int x = start_x; x < end_x; x++) {
             uint8_t tile_id = level->map_data[y * MAP_WIDTH + x];
-            if (tile_id == 0) continue; 
+            if (tile_id == 0) continue;
 
             int tile_index = tile_id - 1;
             int tile_x = (tile_index % level_tilesheet->hslices) * TILE_SIZE;

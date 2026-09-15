@@ -671,13 +671,6 @@ void check_projectile_collisions(game_state_t *state)
 {
     int proj_count = get_projectile_count();
 
-    // Determine the viewport configuration layout structure safely
-    int active_count = 0;
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (state->players[i].meta.state & ACTIVE) active_count++;
-    }
-    int config_idx = active_count - 1; 
-
     for (int i = proj_count - 1; i >= 0; i--)
     {
         projectile_t *proj = get_projectile_at(i);

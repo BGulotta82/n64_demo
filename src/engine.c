@@ -123,37 +123,34 @@ void engine_init(game_state_t *state) {
     for (int i = 0; i < MAX_PLAYERS; i++) {
         input_init(&state->input[i]);
     }
+
+    load_stage_by_index(state, 0);
 }
 
 void engine_update(game_state_t *state, float dt) {
 
     joypad_poll();
     
-    if (state->match_state == STATE_WAITING_TO_START ||
-        state->match_state == STATE_GAME_OVER ||
+    if (state->match_state == STATE_GAME_OVER ||
         state->match_state == STATE_LEVEL_CLEARED) {
         for (int i = 0; i < MAX_PLAYERS; i++) {
             input_update(&state->input[i], i);
-            if ((state->match_state == STATE_GAME_OVER || 
-                 state->match_state == STATE_WAITING_TO_START ||
+            if ((state->match_state == STATE_GAME_OVER ||
                  state->players[i].meta.state & ACTIVE) && 
                  state->input[i].active_actions & ACTION_START) {                
                     int next_level_index = state->level_index;
                 
                     if (state->match_state == STATE_LEVEL_CLEARED) {
-                    state->level_index++;
-                    next_level_index = state->level_index;
-                }
+                        state->level_index++;
+                        next_level_index = state->level_index;
+                    }
 
-                load_stage_by_index(state, next_level_index);
-                state->match_state = STATE_PLAYING;
-                break;
+                    load_stage_by_index(state, next_level_index);
+                    return;
             }
         }
 
-        if (state->match_state != STATE_PLAYING){
-            return;
-        }
+        return;
     }
 
     int active_players = 0;
@@ -168,6 +165,8 @@ void engine_update(game_state_t *state, float dt) {
         if (!player_active){
             check_new_player_spawn(&state->players[i], state->players, &state->level, &state->input[i], i);
             player_spawned = state->players[i].meta.state & SPAWNED; 
+            if (player_spawned && state->match_state != STATE_PLAYING)
+                state->match_state = STATE_PLAYING;
         }
 
         if (!(state->players[i].meta.state & ACTIVE)) {
@@ -270,13 +269,8 @@ void check_new_player_spawn(character *self, character *players, level_t *level,
 
     if (input->active_actions & ACTION_START && 
       !(self->meta.state & ACTIVE) && 
-      !(self->meta.state & SPAWNED))
-    {
-        //character_type type = (rand() % 4) + 1; 
-        character_type type = ELF; 
-        //character_type type = WIZARD;
-        //character_type type = DWARF;
-
+      !(self->meta.state & SPAWNED)) {
+        character_type type = (rand() % 4) + 1; 
         character_init(self, type, false, id);
         self->meta.state |= ACTIVE;
         self->meta.state |= SPAWNED;
@@ -621,7 +615,7 @@ void check_melee_collisions(game_state_t *state)
                     {
                         enemy->meta.last_hit_by_attack_id = player->meta.current_attack_id;
 
-                        enemy->meta.health--;
+                        enemy->meta.health -= player->meta.damage;
                         if (enemy->meta.health <= 0)
                         {
                             enemy->meta.health = 0;
@@ -654,7 +648,7 @@ void check_melee_collisions(game_state_t *state)
 
                 if (p_x1 < e_x2 && p_x2 > e_x1 && p_y1 < e_y2 && p_y2 > e_y1)
                 {
-                    player->meta.health--;
+                    player->meta.health-= enemy->meta.damage;
                     if (player->meta.health <= 0)
                     {
                         player->meta.health = 0;

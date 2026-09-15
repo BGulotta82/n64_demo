@@ -43,6 +43,7 @@ typedef struct {
     int coyote_frames;       // Time allowed to jump AFTER leaving a ledge
     int jump_buffer_frames, invincibility_frames;  // Time to remember a jump press BEFORE touching down
     int health;
+    int damage; 
     int current_attack_id;      // Increment this every time the player presses the attack button
     int last_hit_by_attack_id;  //
     int ai_home_row;         

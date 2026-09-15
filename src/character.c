@@ -76,36 +76,43 @@ void character_init(character *character, character_type type, bool is_enemy, in
             character->meta.width = 16.0f;
             character->meta.height = 32.0f;
             character->meta.health = 4;
+            character->meta.damage = 1;
         break;
         case ELF:
             character->meta.width = 16.0f;
             character->meta.height = 28.0f;
             character->meta.health = 3;
+            character->meta.damage = 1;
         break;
         case WIZARD:
             character->meta.width = 16.0f;
             character->meta.height = 32.0f;
             character->meta.health = 3;
+            character->meta.damage = 1;
         break;
         case DWARF:
             character->meta.width = 20.0f;
             character->meta.height = 24.0f;
             character->meta.health = 5;
+            character->meta.damage = 1;
         break;
         case GOOMBA:
             character->meta.health = 2;
             character->meta.width = 20;
             character->meta.height = 16;
+            character->meta.damage = 1;
         break;
         case SKELETON:
             character->meta.health = 1;
             character->meta.width = 14;
             character->meta.height = 28;
+            character->meta.damage = 1;
         break;
         default:
             character->meta.health = 0;
             character->meta.width = 0;
             character->meta.height = 0;
+            character->meta.damage = 0;
             break;
     }
 

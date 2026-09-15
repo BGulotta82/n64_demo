@@ -91,28 +91,49 @@ void renderer_draw(surface_t *disp, const game_state_t *state) {
     // Attach the RDP queue directly to the locked surface
     rdpq_attach_clear(disp, NULL);
 
-    if (state->match_state == STATE_WAITING_TO_START) {
+    draw_dynamic_split_screen(state);
+
+    draw_game_state(state);
+
+    // Detach and flip cleanly at the next VSync interval
+    rdpq_detach_show();
+}
+
+void draw_game_state(const game_state_t *state)
+{
+    if (state->match_state == STATE_GAME_OVER) {
+        rdpq_set_mode_fill(RGBA32(0x00, 0x00, 0x00, 200));
+        rdpq_fill_rectangle(30, 90, 290, 150); 
+        
+        rdpq_set_mode_standard();
+        rdpq_text_printf(NULL, 1, 120, 114, "GAME OVER");
+        rdpq_text_printf(NULL, 1, 68, 134, "PRESS START TO RETRY STAGE");
+    } 
+    else  if (state->match_state == STATE_LEVEL_CLEARED) {
+        rdpq_set_mode_fill(RGBA32(0x10, 0x40, 0x10, 200));
+        rdpq_fill_rectangle(30, 90, 290, 150);
+        
+        rdpq_set_mode_standard();
+        rdpq_text_printf(NULL, 1, 108, 114, "STAGE CLEARED!");
+        rdpq_text_printf(NULL, 1, 64, 134, "PRESS START FOR NEXT STAGE");
+    } 
+    else if (state->match_state == STATE_WAITING_TO_START) {
         // Render a large dark box over the center of the viewport screen
         rdpq_set_mode_fill(RGBA32(0x00, 0x00, 0x00, 200));
         rdpq_fill_rectangle(30, 90, 290, 150); // Elongated slightly to fit two lines
 
         // (Blinks every 30 frames at 60 FPS (~0.5 seconds))
-        if (state->frame % 60 < 30) {            
+        if (state->frame % 60 < 30)
+        {
             // Render a large dark box over the center of the viewport screen
             rdpq_set_mode_fill(RGBA32(0xFF, 0xFF, 0xFF, 200));
             rdpq_fill_rectangle(30, 90, 290, 150); // Elongated slightly to fit two lines
-            
+
             rdpq_set_mode_standard();
             // Line 1: Primary Status
             rdpq_text_printf(NULL, 1, 120, 114, "PRESS START");
-
-        }        
+        }
     }
-
-    draw_dynamic_split_screen(state);
-    
-    // Detach and flip cleanly at the next VSync interval
-    rdpq_detach_show();
 }
 
 void draw_dynamic_split_screen(const game_state_t *state) {
@@ -512,25 +533,5 @@ void draw_hud(const game_state_t *state) {
 
         rdpq_text_printf(NULL, 1, right_offset, 14, player_string);
         right_offset += 45; // P3 at 224px, P4 at 269px
-    }
-
-    // =========================================================================
-    // D. MASTER STATE TEXT OVERLAYS & CONTROLLER PROMPTS
-    // =========================================================================
-    if (state->match_state == STATE_GAME_OVER) {
-        rdpq_set_mode_fill(RGBA32(0x00, 0x00, 0x00, 200));
-        rdpq_fill_rectangle(30, 90, 290, 150); 
-        
-        rdpq_set_mode_standard();
-        rdpq_text_printf(NULL, 1, 120, 114, "GAME OVER");
-        rdpq_text_printf(NULL, 1, 68, 134, "PRESS START TO RETRY STAGE");
-    } 
-    else if (state->match_state == STATE_LEVEL_CLEARED) {
-        rdpq_set_mode_fill(RGBA32(0x10, 0x40, 0x10, 200));
-        rdpq_fill_rectangle(30, 90, 290, 150);
-        
-        rdpq_set_mode_standard();
-        rdpq_text_printf(NULL, 1, 108, 114, "STAGE CLEARED!");
-        rdpq_text_printf(NULL, 1, 64, 134, "PRESS START FOR NEXT STAGE");
     }
 }

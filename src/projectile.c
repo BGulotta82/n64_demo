@@ -104,7 +104,7 @@ void spawn_projectile_from_character(const character *self) {
             p.physics.vy = 0.0f;
             p.meta.width = 8;
             p.meta.height = 8;
-            p.meta.damage = 15;
+            p.meta.damage = 1;
             p.meta.lifetime_frames = 120; // 2 seconds at 60 FPS
             break;
         }
@@ -116,7 +116,7 @@ void spawn_projectile_from_character(const character *self) {
             p.physics.terminal_velocity = 8.0f; // Safe falling cap
             p.meta.width = 12;
             p.meta.height = 4;
-            p.meta.damage = 10;
+            p.meta.damage = 1;
             p.meta.lifetime_frames = 180;            
             break;
         }

@@ -34,8 +34,8 @@ const anim_config_t character_anims[CHAR_TYPE_MAX][NUMBER_OF_ANIMATION_STATES] =
         [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
         [ANIM_ATTACK] = 
         {
-            .frame_count = 12, .frame_duration = 4, 
-            .hitbox_start_frame = 8, .hitbox_end_frame = 8, // Single frame trigger to spawn projectile
+            .frame_count = 12, .frame_duration = 2, 
+            .hitbox_start_frame = 8, .hitbox_end_frame = 8, // Single frame trigger to spawn projectile_t
             .hitbox = {
                 .style = HITBOX_STYLE_PROJECTILE,
                 .width = 8.0f, .height = 8.0f, // Small spawning point
@@ -50,7 +50,7 @@ const anim_config_t character_anims[CHAR_TYPE_MAX][NUMBER_OF_ANIMATION_STATES] =
         [ANIM_ATTACK] = 
         {
             .frame_count = 12, .frame_duration = 4, 
-            .hitbox_start_frame = 8, .hitbox_end_frame = 8, // Single frame trigger to spawn projectile
+            .hitbox_start_frame = 8, .hitbox_end_frame = 8, // Single frame trigger to spawn projectile_t
             .hitbox = {
                 .style = HITBOX_STYLE_PROJECTILE,
                 .width = 8.0f, .height = 8.0f, // Small spawning point
@@ -64,11 +64,11 @@ const anim_config_t character_anims[CHAR_TYPE_MAX][NUMBER_OF_ANIMATION_STATES] =
         [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
         [ANIM_ATTACK] = 
         { 
-            .frame_count = 12, .frame_duration = 4, 
+            .frame_count = 12, .frame_duration = 3, 
             .hitbox_start_frame = 5, .hitbox_end_frame = 8,
             .hitbox = {
                 .style = HITBOX_STYLE_MELEE_SWEEP,
-                .width = 48.0f, .height = 32.0f, // Large sword swipe
+                .width = 20.0f, .height = 101.0f, // Large sword swipe
                 .offset_x = 16.0f, .offset_y = 0.0f
             }
         },
@@ -211,6 +211,8 @@ void engine_update(game_state_t *state, float dt) {
         }
     }
 
+    update_projectiles(dt);
+
     // 3. RESOLVE COMBAT OUTCOMES LAST
     // This evaluates modifications over clean, locked positions
     check_pve_combat(state, dt);
@@ -272,7 +274,9 @@ void check_new_player_spawn(character *self, character *players, level_t *level,
       !(self->meta.state & SPAWNED))
     {
         //character_type type = (rand() % 4) + 1; 
-        character_type type = ELF; 
+        //character_type type = ELF; 
+        //character_type type = WIZARD;
+        character_type type = DWARF;
 
         character_init(self, type, false);
         self->meta.state |= ACTIVE;
@@ -569,96 +573,225 @@ void ai_behavior_goomba(const character *enemy, const character *target, bool *m
 }
 
 void check_pve_combat(game_state_t *state, float dt) {
-    for (int p = 0; p < MAX_PLAYERS; p++) {
-        character *player = &state->players[p];
-        if (!(player->meta.state & ACTIVE)) continue;
+    // =========================================================================
+    // PHASE 1: PROJECTILE COLLISIONS
+    // =========================================================================
+    // Loop backward through our dynamic projectile registry to safely handle deletions
+    check_projectile_collisions(state);
 
-        // 1. EXTRACT SWORD ATTACK HITBOX
+    // =========================================================================
+    // PHASE 2: MELEE AND BODY-TO-BODY COMBAT (Your Original Code)
+    // =========================================================================
+    check_melee_collisions(state);
+}
+
+void check_melee_collisions(game_state_t *state)
+{
+    for (int p = 0; p < MAX_PLAYERS; p++)
+    {
+        character *player = &state->players[p];
+        if (!(player->meta.state & ACTIVE))
+            continue;
+
         rect_t attack_box;
         bool is_attacking = get_character_secondary_hitbox(player, &attack_box);
 
-        for (int e = 0; e < MAX_ENEMIES; e++) {
+        for (int e = 0; e < MAX_ENEMIES; e++)
+        {
             character *enemy = &state->enemies[e];
-            if (!(enemy->meta.state & ACTIVE)) continue;
+            if (!(enemy->meta.state & ACTIVE))
+                continue;
 
-            // Define the enemy's hurtbox bounds in world space
             float e_x1 = enemy->x;
             float e_y1 = enemy->y;
             float e_x2 = enemy->x + (float)enemy->meta.width;
             float e_y2 = enemy->y + (float)enemy->meta.height;
 
-            // 2. CHECK ATTACK HITBOX VS ENEMY (PLAYER ATTACKS ENEMY)
-            if (is_attacking) {
-                // AABB Overlap test between player's sword and enemy body
+            // Player Melee Attack vs Enemy
+            if (is_attacking)
+            {
                 if (attack_box.x1 < e_x2 && attack_box.x2 > e_x1 &&
-                    attack_box.y1 < e_y2 && attack_box.y2 > e_y1) {
-                    
-                    // HIT REGISTER CHECK: Only hit if this unique attack hasn't struck this enemy yet
-                    if (enemy->meta.last_hit_by_attack_id != player->meta.current_attack_id) {
-                        
-                        // Mark this enemy as hit by this specific attack
+                    attack_box.y1 < e_y2 && attack_box.y2 > e_y1)
+                {
+
+                    if (enemy->meta.last_hit_by_attack_id != player->meta.current_attack_id)
+                    {
                         enemy->meta.last_hit_by_attack_id = player->meta.current_attack_id;
 
-                        // Apply damage
                         enemy->meta.health--;
-                        if (enemy->meta.health <= 0) {
+                        if (enemy->meta.health <= 0)
+                        {
                             enemy->meta.health = 0;
                             enemy->meta.state &= ~ACTIVE;
-                        } else {
-                            // ENEMY KNOCKBACK MECHANICS
-                            // Calculate direction from player to enemy
+                        }
+                        else
+                        {
                             float p_center_x = player->x + ((float)player->meta.width / 2.0f);
                             float e_center_x = enemy->x + ((float)enemy->meta.width / 2.0f);
-
-                            // Apply horizontal knockback based on relative positioning
-                            if (e_center_x > p_center_x) {
-                                enemy->physics.vx = 45.0f;  // Less intense fling right
-                            } else {
-                                enemy->physics.vx = -45.0f; // Less intense fling left
-                            }
-
-                            // Reduce the upward pop from -80.0f to -40.0f so they stay closer to the ground
-                            enemy->physics.vy = -20.0f; 
-                            enemy->physics.state &= ~GROUNDED; // Lift them off ground states if tracked
+                            enemy->physics.vx = (e_center_x > p_center_x) ? 45.0f : -45.0f;
+                            enemy->physics.vy = -20.0f;
+                            enemy->physics.state &= ~GROUNDED;
                         }
                     }
-                    
-                    continue; // Strike hit cleanly; skip testing if player takes body damage
+                    continue;
                 }
             }
 
-            // 3. CHECK BODY-TO-BODY OVERLAP (ENEMY HURTS PLAYER)
-            if (player->meta.invincibility_frames == 0) {
+            // Enemy Body Touch Damage vs Player
+            if (player->meta.invincibility_frames == 0)
+            {
                 float p_x1 = player->x;
                 float p_y1 = player->y;
                 float p_x2 = player->x + (float)player->meta.width;
                 float p_y2 = player->y + (float)player->meta.height;
 
-                if (p_x1 < e_x2 && p_x2 > e_x1 &&
-                    p_y1 < e_y2 && p_y2 > e_y1) {
-                    
+                if (p_x1 < e_x2 && p_x2 > e_x1 && p_y1 < e_y2 && p_y2 > e_y1)
+                {
                     player->meta.health--;
-                    if (player->meta.health <= 0) {
+                    if (player->meta.health <= 0)
+                    {
                         player->meta.health = 0;
                         player->meta.state &= ~ACTIVE;
-                        break; // Exit enemy loop; player is dead
+                        break;
                     }
 
-                    // Player knockback handling
                     float p_center_x = player->x + ((float)player->meta.width / 2.0f);
                     float e_center_x = enemy->x + ((float)enemy->meta.width / 2.0f);
-                    
-                    if (p_center_x < e_center_x) {
-                        player->physics.vx = -120.0f;
-                    } else {
-                        player->physics.vx = 120.0f;
-                    }
-
+                    player->physics.vx = (p_center_x < e_center_x) ? -120.0f : 120.0f;
                     player->physics.vy = -100.0f;
                     player->physics.state &= ~GROUNDED;
                     player->meta.invincibility_frames = 60;
                 }
             }
+        }
+    }
+}
+
+void check_projectile_collisions(game_state_t *state)
+{
+    int proj_count = get_projectile_count();
+
+    for (int i = proj_count - 1; i >= 0; i--)
+    {
+        projectile_t *proj = get_projectile_at(i);
+
+        // Define projectile bounds
+        float proj_x1 = proj->x;
+        float proj_y1 = proj->y;
+        float proj_x2 = proj->x + (float)proj->meta.width;
+        float proj_y2 = proj->y + (float)proj->meta.height;
+
+        bool hit_something = false;
+
+        if (proj->meta.is_enemy)
+        {
+            // ENEMY PROJECTILE VS PLAYERS
+            for (int p = 0; p < MAX_PLAYERS; p++)
+            {
+                character *player = &state->players[p];
+                if (!(player->meta.state & ACTIVE) || player->meta.invincibility_frames > 0)
+                    continue;
+
+                float p_x1 = player->x;
+                float p_y1 = player->y;
+                float p_x2 = player->x + (float)player->meta.width;
+                float p_y2 = player->y + (float)player->meta.height;
+
+                // AABB Check
+                if (proj_x1 < p_x2 && proj_x2 > p_x1 && proj_y1 < p_y2 && proj_y2 > p_y1)
+                {
+                    // Deal damage using projectile specific property
+                    player->meta.health -= proj->meta.damage;
+                    if (player->meta.health <= 0)
+                    {
+                        player->meta.health = 0;
+                        player->meta.state &= ~ACTIVE;
+                    }
+                    else
+                    {
+                        // Player Knockback
+                        player->physics.vx = (player->x + (player->meta.width / 2.0f) < proj->x) ? -120.0f : 120.0f;
+                        player->physics.vy = -100.0f;
+                        player->physics.state &= ~GROUNDED;
+                        player->meta.invincibility_frames = 60;
+                    }
+                    hit_something = true;
+                    break; // Stop scanning players for this projectile
+                }
+            }
+        }
+        else
+        {
+            // PLAYER PROJECTILE VS ENEMIES
+            for (int e = 0; e < MAX_ENEMIES; e++)
+            {
+                character *enemy = &state->enemies[e];
+                if (!(enemy->meta.state & ACTIVE))
+                    continue;
+
+                float e_x1 = enemy->x;
+                float e_y1 = enemy->y;
+                float e_x2 = enemy->x + (float)enemy->meta.width;
+                float e_y2 = enemy->y + (float)enemy->meta.height;
+
+                // AABB Check
+                if (proj_x1 < e_x2 && proj_x2 > e_x1 && proj_y1 < e_y2 && proj_y2 > e_y1)
+                {
+
+                    // UNIQUE HIT REGISTER CHECK: Match projectile's origin ID with enemy tracking
+                    if (enemy->meta.last_hit_by_attack_id != proj->meta.damage_source_id)
+                    {
+                        enemy->meta.last_hit_by_attack_id = proj->meta.damage_source_id;
+
+                        enemy->meta.health -= proj->meta.damage;
+                        if (enemy->meta.health <= 0)
+                        {
+                            enemy->meta.health = 0;
+                            enemy->meta.state &= ~ACTIVE;
+                        }
+                        else
+                        {
+                            // Enemy Knockback
+                            float proj_center_x = proj->x + ((float)proj->meta.width / 2.0f);
+                            float e_center_x = enemy->x + ((float)enemy->meta.width / 2.0f);
+                            enemy->physics.vx = (e_center_x > proj_center_x) ? 45.0f : -45.0f;
+                            enemy->physics.vy = -20.0f;
+                            enemy->physics.state &= ~GROUNDED;
+                        }
+                        hit_something = true;
+                    }
+                    if (hit_something)
+                        break;
+                }
+            }
+        }
+
+        if (!hit_something)
+        {
+            // // Convert pixel bounds to tile index coordinates
+            // int tile_x1 = (int)proj_x1 / TILE_SIZE;
+            // int tile_y1 = (int)proj_y1 / TILE_SIZE;
+            // int tile_x2 = (int)proj_x2 / TILE_SIZE;
+            // int tile_y2 = (int)proj_y2 / TILE_SIZE;
+
+            // // Sample the map array data at the 4 corners of the bounding box.
+            // // Adjust 'state->map_data' if your map buffer name is different.
+            // uint8_t tl = get_tile_at(state->level.map_data, tile_x1, tile_y1); // Top-Left
+            // uint8_t tr = get_tile_at(state->level.map_data, tile_x2, tile_y1); // Top-Right
+            // uint8_t bl = get_tile_at(state->level.map_data, tile_x1, tile_y2); // Bottom-Left
+            // uint8_t br = get_tile_at(state->level.map_data, tile_x2, tile_y2); // Bottom-Right
+
+            // // Assuming tile index '0' is empty space/air, and values >= 1 are solid structures
+            // if (tl != 0 || tr != 0 || bl != 0 || br != 0)
+            // {
+            //     hit_something = true;
+            // }
+        }
+
+        // If it hit a target, delete the projectile (assuming non-piercing)
+        if (hit_something)
+        {
+            destroy_projectile(i);
         }
     }
 }
@@ -760,6 +893,13 @@ void update_character_animation_state(character *self) {
             if (self->meta.anim_timer >= cfg->frame_duration) {
                 self->meta.anim_timer = 0;
                 self->meta.current_anim_frame_index = (self->meta.current_anim_frame_index + 1) % cfg->frame_count;
+
+                if (self->meta.current_anim == ANIM_ATTACK && 
+                    cfg->hitbox.style == HITBOX_STYLE_PROJECTILE) {
+                        if (self->meta.current_anim_frame_index == cfg->hitbox_start_frame) {
+                            spawn_projectile_from_character(self);
+                        }
+                    }
             }
         }
     }
@@ -770,7 +910,7 @@ void update_character_animation_state(character *self) {
 bool get_character_secondary_hitbox(const character *chr, rect_t *out_rect)
 {
     const anim_config_t *cfg = &character_anims[chr->meta.type][chr->meta.current_anim];
-    if (!cfg || cfg->hitbox_start_frame <= 0) {
+    if (!cfg || cfg->hitbox_start_frame <= 0 || cfg->hitbox.style != HITBOX_STYLE_MELEE_SWEEP) {
         return false;
     }
 

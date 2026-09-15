@@ -72,7 +72,7 @@ void character_init(character *character, character_type type, bool is_enemy) {
 
     switch(type) {
         case KNIGHT:
-            character->meta.width = 18.0f;
+            character->meta.width = 16.0f;
             character->meta.height = 32.0f;
             character->meta.health = 4;
         break;
@@ -82,9 +82,13 @@ void character_init(character *character, character_type type, bool is_enemy) {
             character->meta.health = 3;
         break;
         case WIZARD:
+            character->meta.width = 16.0f;
+            character->meta.height = 32.0f;
             character->meta.health = 3;
         break;
         case DWARF:
+            character->meta.width = 20.0f;
+            character->meta.height = 24.0f;
             character->meta.health = 5;
         break;
         case GOOMBA:

@@ -129,7 +129,13 @@ typedef struct {
     float x, y;
     projectile_meta meta;
     projectile_physics physics; // Physics properties for the projectile
-} projectile;
+} projectile_t;
+
+typedef struct {
+    projectile_t *data; // Pointer to the dynamic array buffer
+    int count;          // Current number of active projectiles on screen
+    int capacity;       // Maximum slots currently allocated
+} projectile_registry_t;
 #pragma endregion
 
 #pragma region ENGINE_STRUCTS

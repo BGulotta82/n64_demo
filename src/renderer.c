@@ -141,6 +141,8 @@ void draw_dynamic_split_screen(const game_state_t *state) {
         // Draw Map Tiles using stabilized tile space constraints
         draw_map_tiles(&state->level, &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
 
+        debug_draw_projectiles_hitbox(&cameras[i], layout.screen_x, layout.screen_y);
+
         // =========================================================================
         // --- RENDER PLAYERS ---
         // =========================================================================
@@ -271,6 +273,48 @@ void debug_draw_secondary_hitbox(const character *chr, const camera_t *active_ca
     rdpq_fill_rectangle(x1, y2 - 1, x2, y2);       // Bottom
     rdpq_fill_rectangle(x1, y1, x1 + 1, y2);       // Left
     rdpq_fill_rectangle(x2 - 1, y1, x2, y2);       // Right
+}
+
+void debug_draw_projectiles_hitbox(const camera_t *active_cam, int off_x, int off_y)
+{
+    // Convert camera space into floors once to save cycles during loop operations
+    int cam_x_floor = (int)floorf(active_cam->x);
+    int cam_y_floor = (int)floorf(active_cam->y);
+
+    // Get the global projectile count (using the getter function strategy)
+    int proj_count = get_projectile_count();
+
+    for (int i = 0; i < proj_count; i++) {
+        projectile_t *proj = get_projectile_at(i);
+        if (!proj) continue;
+
+        // Extract projectile bounds from world coordinates
+        float p_x1 = proj->x;
+        float p_y1 = proj->y;
+        float p_x2 = proj->x + (float)proj->meta.width;
+        float p_y2 = proj->y + (float)proj->meta.height;
+
+        // Convert world-space box coordinates into camera screen-space
+        int x1 = (int)floorf(p_x1) - cam_x_floor + off_x;
+        int y1 = (int)floorf(p_y1) - cam_y_floor + off_y;
+        int x2 = (int)floorf(p_x2) - cam_x_floor + off_x;
+        int y2 = (int)floorf(p_y2) - cam_y_floor + off_y;
+
+        // Set the debug rectangle color depending on ownership
+        if (proj->meta.is_enemy) {
+            // Enemy Projectile: Bright Red Tint
+            rdpq_set_mode_fill(RGBA32(255, 0, 0, 255));
+        } else {
+            // Player Projectile: Cyan / Bright Blue Tint
+            rdpq_set_mode_fill(RGBA32(0, 255, 255, 255));
+        }
+
+        // Draw the 4 edges of the projectile bounding box
+        rdpq_fill_rectangle(x1, y1, x2, y1 + 1);       // Top
+        rdpq_fill_rectangle(x1, y2 - 1, x2, y2);       // Bottom
+        rdpq_fill_rectangle(x1, y1, x1 + 1, y2);       // Left
+        rdpq_fill_rectangle(x2 - 1, y1, x2, y2);       // Right
+    }
 }
 
 void draw_single_character(const character *chr, const camera_t *active_cam, int off_x, int off_y, int view_w, int view_h) {

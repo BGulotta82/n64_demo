@@ -820,6 +820,8 @@ void check_projectile_collisions(game_state_t *state)
         if (hit_something)
         {
             destroy_projectile(i);
+            proj_count--; // The total pool shrank by one
+            i--;       
         }
     }
 }

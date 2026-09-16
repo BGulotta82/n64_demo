@@ -10,6 +10,7 @@
 uint8_t get_tile_at(uint8_t *map_data, int x, int y);
 void load_level_binary(const char *dfs_path, level_t *level, int num_players);
 void spawn_entities(level_t *level, int num_players);
+void spawn_enemies(int num_players, level_t *level, int x, int y);
 int get_enemy_count(void);
 character* get_enemy_at(int index);
 void init_enemy_registry(int initial_capacity);

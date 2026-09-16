@@ -146,7 +146,6 @@ void draw_dynamic_split_screen(const game_state_t *state) {
     if (active_count == 0) return;
 
     int config_idx = active_count - 1; 
-    int current_viewport_slot = 0;
 
     // Loop through ALL camera profiles sequentially to render screens reliably
     for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -154,7 +153,8 @@ void draw_dynamic_split_screen(const game_state_t *state) {
         // but decouple player survival states from structural loop limits.
         if (!(state->players[i].meta.state & ACTIVE)) continue;
 
-        viewport_layout_t layout = viewport_configs[config_idx][current_viewport_slot];
+        int current_player_id = state->players[i].meta.id;
+        viewport_layout_t layout = viewport_configs[config_idx][current_player_id];
 
         // --- N64 HARDWARE SCISSOR WINDOW GATE ---
         rdpq_set_scissor(layout.screen_x, layout.screen_y, layout.screen_x + layout.width, layout.screen_y + layout.height);
@@ -188,8 +188,6 @@ void draw_dynamic_split_screen(const game_state_t *state) {
             // Draw the enemy's matching physical hitbox (Bright Red for clear visibility)
             debug_draw_character_hitbox(enemy, &cameras[i], layout.screen_x, layout.screen_y, 0xFF0000FF);
         }
-
-        current_viewport_slot++;
     }
 
     // Reset scissor to full-screen limits safely
@@ -198,9 +196,7 @@ void draw_dynamic_split_screen(const game_state_t *state) {
     rdpq_mode_alphacompare(1);
     draw_hud(state);
 
-    if (state->players[0].meta.state & ACTIVE) {
-        debug_render_character_telemetry(&state->players[0], 16.0f, 20.0f);
-    }
+    debug_render_character_telemetry(&state->players[0], 16.0f, 20.0f);
 }
 
 void debug_render_character_telemetry(const character *c, float x, float y) {
@@ -460,7 +456,10 @@ void draw_map_tiles(const level_t *level, const camera_t *active_cam, int off_x,
 
         for (int x = start_x; x < end_x; x++) {
             uint8_t tile_id = level->map_data[map_row_offset + x];
-            if (tile_id == 0) continue; // Skip empty space air tiles
+            if (tile_id == 0 ||
+                tile_id == PLAYER_SPAWN ||
+                tile_id == ENEMY_SPAWN ||
+                tile_id == BOSS_SPAWN) continue; // Skip empty space air tiles
 
             int tile_index = tile_id - 1;
             
@@ -481,9 +480,6 @@ void draw_map_tiles(const level_t *level, const camera_t *active_cam, int off_x,
             rdpq_sprite_blit(level_tilesheet, screen_x, screen_y, &parms);
         }
     }
-
-    // Reset scissor back to full screen bounds when finished so UI renders properly
-    rdpq_set_scissor(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 }
 
 void draw_hud(const game_state_t *state) {

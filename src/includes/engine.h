@@ -15,6 +15,7 @@
 
 void engine_init(game_state_t *state);
 void engine_update(game_state_t *state, float dt);
+void spawn_new_enemies(game_state_t *state, int num_enemies_to_spawn, character *self);
 void load_stage_by_index(game_state_t *state, int index);
 void check_new_player_spawn(character *self, character *players, level_t *level, input_state *input, int id);
 void spawn_new_player(character *self, character *players, level_t *level);

@@ -30,5 +30,6 @@ void handle_move_right(character *character, input_state *input, float dt);
 void move_character(character *character, float dt);
 void handle_jump(character *self, character *players, input_state *input);
 void handle_attack(character *character, input_state *input);
+character * find_furthest_active_player(character *players, const character *self);
 
  #endif // CHARACTER_H

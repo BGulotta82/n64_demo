@@ -1,6 +1,7 @@
 #include "engine.h"
 
 extern camera_t cameras[MAX_VIEWPORTS];
+extern const int g_enemies_per_spawn_point[MAX_PLAYERS];
 
 // Define the static constant table mapping parameters directly to the character type index
 const animation_profile_t character_animation_profiles[CHAR_TYPE_MAX] = {
@@ -148,7 +149,9 @@ void engine_update(game_state_t *state, float dt) {
     }
 
     int active_players = 0;
-    bool player_spawned = false;
+    int new_players = 0;
+
+    character *spawned_player = NULL;
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
 
@@ -156,18 +159,26 @@ void engine_update(game_state_t *state, float dt) {
 
         bool player_active = (state->players[i].meta.state & ACTIVE);
 
-        if (!player_active){
+        if (!player_active) {
             check_new_player_spawn(&state->players[i], state->players, &state->level, &state->input[i], i);
-            player_spawned = state->players[i].meta.state & SPAWNED; 
+            if (state->players[i].meta.state & SPAWNED){
+                spawned_player = &state->players[i]; 
+                new_players++;
+            } 
         }
 
         if (!(state->players[i].meta.state & ACTIVE)) {
             continue;
         }
-
+        
         active_players++;
      
         character_update(&state->players[i], state->players, &state->input[i], state->level.map_data, dt);
+    }
+
+    if (new_players > 0 && spawned_player->meta.id > 0) {
+        int num_enemies_to_spawn = g_enemies_per_spawn_point[active_players - 1] - g_enemies_per_spawn_point[new_players - 1];
+        spawn_new_enemies(state, num_enemies_to_spawn, spawned_player);
     }
 
     // 2. Update your enemies using simulated AI inputs
@@ -214,7 +225,7 @@ void engine_update(game_state_t *state, float dt) {
         }        
         // --- SURVIVOR OR SPONTANEOUS DROP-IN CONDITION TRACKING ---
         // Only evaluate standard field tracking flags if a player isn't in mid-spawn transition
-        else if (!player_spawned) {
+        else if (new_players == 0) {
             // Trigger a victory if all enemies are dead and active players are present on screen
             if (state->total_enemies_left == 0 && active_players > 0) {
                 state->match_state = STATE_LEVEL_CLEARED;
@@ -226,7 +237,7 @@ void engine_update(game_state_t *state, float dt) {
         }
         // Fallback: If players died while someone was spawning, but the timer is safe, 
         // the drop-in player preserves the match lifecycle cleanly.
-        else if (active_players == 0 && player_spawned) {
+        else if (active_players == 0 && new_players > 0) {
             // Keep state playing so the new player drops down from the sky smoothly!
         }
     }
@@ -256,6 +267,23 @@ void engine_update(game_state_t *state, float dt) {
     state->frame++;
 }
 
+void spawn_new_enemies(game_state_t *state, int num_enemies_to_spawn, character *self)
+{
+    // find furthest active player in the map
+    character *furthest_active_player = find_furthest_active_player(state->players, self);
+    camera_t player_camera = cameras[furthest_active_player->meta.id];
+    int tile_start_idx = (int)((player_camera.x + player_camera.width + TILE_SIZE) / TILE_SIZE);
+
+    for (int y = 0; y < MAP_HEIGHT; y++) {
+        for (int x = tile_start_idx; x < MAP_WIDTH; x++) {
+            uint8_t tile_id =  get_tile_at(state->level.map_data, x, y);
+            if (tile_id != ENEMY_SPAWN) continue;
+
+            spawn_enemies(num_enemies_to_spawn, &state->level, x, y);
+        }
+    }
+}
+
 void check_new_player_spawn(character *self, character *players, level_t *level, input_state *input, int id)
 {
     if (input->active_actions & ACTION_START && 
@@ -271,49 +299,47 @@ void check_new_player_spawn(character *self, character *players, level_t *level,
 
 void spawn_new_player(character *self, character *players, level_t *level)
 {
-    // --- Player 1 (The Host) Spawns at Level Point ---
     if (self == &players[0])
     {
         self->x = level->spawn_x;
         self->y = level->spawn_y;
     } 
-    // --- Players 2, 3, and 4 Drop In Dynamically ---
     else 
     {
-        // Fallback safety check: If Player 1 somehow died or is inactive, use level default
-        if (!(players[0].meta.state & ACTIVE)) {
-            self->x = level->spawn_x;
-            self->y = level->spawn_y;
-            return;
+        character *furthest = find_furthest_active_player(players, self);
+
+        float target_x = level->spawn_x;
+        float target_y = level->spawn_y;
+        float desired_offset = 20.0f;
+        
+        if (furthest != NULL) {
+            bool moving_right = furthest->physics.state & MOVING_RIGHT;
+            desired_offset = moving_right ? -20.0f : 20.0f;
+            
+            target_x = furthest->x + desired_offset;
+            target_y = furthest->y;
         }
 
-        bool p1_moving_right = players[0].physics.state & MOVING_RIGHT;
-        float desired_offset = p1_moving_right ? -20.0f : 20.0f; // Tucked slightly closer than 30px
-        
-        float target_x = players[0].x + desired_offset;
-        float target_y = players[0].y;
-
-        // --- LEVEL BOUNDARY SAFETY WALLS ---
-        // Keep late spawns within the map dimensions so they don't spawn off-screen
-        if (target_x < 0.0f) target_x = 0.0f;
+        // 1. CLAMP FIRST: Guarantee negative bounds are completely erased
+        if (target_x < 0.0f) {
+            target_x = 0.0f;
+        }
         if (target_x + (float)self->meta.width > (float)(MAP_WIDTH * TILE_SIZE)) {
             target_x = (float)(MAP_WIDTH * TILE_SIZE) - (float)self->meta.width;
         }
 
-        // --- TILE OVERLAP PREVENTER ---
-        // Sample the tiles where the player's torso would spawn
+        // 2. CHECK SOLID TILES SECOND
         int test_tile_x = (int)(target_x + ((float)self->meta.width / 2.0f)) / TILE_SIZE;
         int test_tile_y = (int)(target_y + ((float)self->meta.height / 2.0f)) / TILE_SIZE;
-
         uint8_t target_tile_block = get_tile_at(level->map_data, test_tile_x, test_tile_y);
 
-        if (target_tile_block == 2) {
-            // If the desired offset is a solid block, bypass the offset completely.
-            // This spawns Player 2 EXACTLY inside Player 1's space, safely leveraging 
-            // your player-to-player collision code to gently push them apart!
-            self->x = players[0].x;
-            self->y = players[0].y;
-        } else {
+        if (target_tile_block == 2 && furthest != NULL) {
+            // Stack perfectly on top of friend if clamped space is a solid wall
+            self->x = furthest->x;
+            self->y = furthest->y;
+        } 
+        else {
+            // Safe open air position assignment
             self->x = target_x;
             self->y = target_y;
         }
@@ -611,6 +637,7 @@ void check_melee_collisions(game_state_t *state)
                         {
                             enemy->meta.health = 0;
                             enemy->meta.state &= ~ACTIVE;
+                            enemy->meta.state &= ~SPAWNED;
                             destroy_enemy(e);
                             enemy_count--; // The total pool shrank by one
                             e--;       
@@ -644,6 +671,7 @@ void check_melee_collisions(game_state_t *state)
                     {
                         player->meta.health = 0;
                         player->meta.state &= ~ACTIVE;
+                        player->meta.state &= ~SPAWNED;
                         break;
                     }
 
@@ -698,6 +726,7 @@ void check_projectile_collisions(game_state_t *state)
                     {
                         player->meta.health = 0;
                         player->meta.state &= ~ACTIVE;
+                        player->meta.state &= ~SPAWNED;
                     }
                     else
                     {
@@ -760,6 +789,7 @@ void check_projectile_collisions(game_state_t *state)
                         {
                             enemy->meta.health = 0;
                             enemy->meta.state &= ~ACTIVE;
+                            enemy->meta.state &= ~SPAWNED;
                             destroy_enemy(e);
                             num_enemies--; // The total pool shrank by one
                             e--;       

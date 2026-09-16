@@ -491,3 +491,20 @@ void check_character_collisions(character *self, character *players, float dt) {
         }
     }
 }
+
+character * find_furthest_active_player(character *players, const character *self) {
+    character *furthest_active_player = NULL;
+    
+    for(int i = 0; i < MAX_PLAYERS; i++) {
+        if (!(players[i].meta.state & ACTIVE)) continue;
+        
+        // FIXED: Do not let the player who is currently spawning track themselves!
+        if (&players[i] == self) continue;
+
+        if (!furthest_active_player || furthest_active_player->x < players[i].x) {
+            furthest_active_player = &players[i];
+        }
+    }
+
+    return furthest_active_player;
+}

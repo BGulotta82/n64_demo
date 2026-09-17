@@ -9,15 +9,16 @@ typedef struct {
     int offset_x;  // Manual pixel adjustment: positive moves right, negative moves left
     int offset_y;  // Manual pixel adjustment: positive moves down, negative moves up
     float flip_offset_correction;
+    int frame_width;
     sprite_t* sprite_sheet;
 } visual_layout_t;
 
 visual_layout_t character_visuals[NUMBER_OF_CHARACTER_TYPES][NUMBER_OF_ANIMATION_STATES] = {
     [KNIGHT] = {
-        [ANIM_IDLE] = { .offset_x = -12.0f, .offset_y = 0.0f, .flip_offset_correction = 8.0f },
-        [ANIM_WALK]   = { .offset_x = -8.0f, .offset_y = 0.0f, .flip_offset_correction = 0.0f }, 
-        [ANIM_ATTACK] = { .offset_x = -8.0f, .offset_y = 0.0f, .flip_offset_correction = 0.0f }, 
-        [ANIM_JUMP]   = { .offset_x = -8.0f, .offset_y = 0.0f, .flip_offset_correction = 0.0f }
+        [ANIM_IDLE] = { .offset_x = -18.0f, .offset_y = -16.0f, .flip_offset_correction = 4.0f, .frame_width = 48 },
+        [ANIM_WALK]   = { .offset_x = -16.0f, .offset_y = -8.0f, .flip_offset_correction = 0.0f, .frame_width = 48 }, 
+        [ANIM_ATTACK] = { .offset_x = -22.0f, .offset_y = -16.0f, .flip_offset_correction = -4.0f, .frame_width = 64 }, 
+        [ANIM_JUMP]   = { .offset_x = -16.0f, .offset_y = -16.0f, .flip_offset_correction = 0.0f, .frame_width = 48 }
     },
     /*[ELF] = {
         [ANIM_IDLE]   = { .offset_x = SCALE_VAL(4),  .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(2.0f) },
@@ -52,7 +53,7 @@ visual_layout_t character_visuals[NUMBER_OF_CHARACTER_TYPES][NUMBER_OF_ANIMATION
 };
 
 void renderer_init(void) {
-    display_init(RESOLUTION_640x480, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
+    display_init(RESOLUTION_640x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
     rdpq_init();
 
     rdpq_font_t *builtin_font = rdpq_font_load_builtin(FONT_BUILTIN_DEBUG_MONO);
@@ -313,13 +314,19 @@ void draw_single_character(const character *chr, int cam_x_floor, int cam_y_floo
     int screen_x = chr_x_floor - cam_x_floor + off_x;
     int screen_y = chr_y_floor - cam_y_floor + off_y;
 
-    sprite_t *sheet = character_visuals[chr->meta.type][chr->meta.current_anim].sprite_sheet;
+    const visual_layout_t *vis = &character_visuals[chr->meta.type][chr->meta.current_anim];
+
+    sprite_t *sheet = vis->sprite_sheet;
     if (!sheet) return;
 
-    int tile_dim = sheet->height; 
+    // FIX: Decouple width and height tracking entirely using your visual configuration layout
+    int frame_w = vis->frame_width; 
+    int frame_h = sheet->height; 
 
-    const visual_layout_t *vis = &character_visuals[chr->meta.type][chr->meta.current_anim];
-    
+    if (frame_w <= 0) {
+        frame_w = frame_h; // Fall back to a perfect square assumption if uninitialized
+    }
+
     // Apply offset vectors depending on facing direction to fix tracking drift
     if (chr->physics.facing_direction == FACING_LEFT) {
         // Adjust mirroring screen coordinate translation anchors safely
@@ -329,26 +336,27 @@ void draw_single_character(const character *chr, int cam_x_floor, int cam_y_floo
     }
     screen_y += vis->offset_y;
 
-    // Viewport Window Culling
-    if (screen_x + tile_dim < off_x  || screen_x > off_x + view_w ||
-        screen_y + tile_dim < off_y || screen_y > off_y + view_h) {
+    // Viewport Window Culling (Updated to track the true width and height properties)
+    if (screen_x + frame_w < off_x  || screen_x > off_x + view_w ||
+        screen_y + frame_h < off_y || screen_y > off_y + view_h) {
         return; 
     }
 
-    int max_sheet_frames = sheet->width / tile_dim;
+    // FIX: Slice texture blocks horizontally using the actual frame width stride
+    int max_sheet_frames = sheet->width / frame_w;
     int visual_frame = chr->meta.current_anim_frame_index;
     if (visual_frame >= max_sheet_frames || visual_frame < 0) {
         visual_frame = 0;
     }
 
-    int tex_src_x = visual_frame * tile_dim;
+    int tex_src_x = visual_frame * frame_w;
 
     // Reconfigure parameters to use native hardware blit structures instead of negative scale matrices
     rdpq_blitparms_t parms = {
         .s0 = tex_src_x,              
         .t0 = 0,                      
-        .width  = tile_dim,           
-        .height = tile_dim,           
+        .width  = frame_w,  // True horizontal pixel dimension         
+        .height = frame_h,  // True vertical pixel dimension         
         .flip_x = (chr->physics.facing_direction == FACING_LEFT) // Native HW flip!
     };
     

@@ -15,15 +15,15 @@ const animation_profile_t character_animation_profiles[CHAR_TYPE_MAX] = {
 // Add your complete mapping table to cover all 4 types safely
 const anim_config_t character_anims[CHAR_TYPE_MAX][NUMBER_OF_ANIMATION_STATES] = {
     [KNIGHT] = {
-        [ANIM_IDLE]   = { .frame_count = 4,  .frame_duration = 8, .hitbox_start_frame = 0, .hitbox_end_frame = 0 },
-        [ANIM_WALK]   = { .frame_count = 7,  .frame_duration = 6, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
+        [ANIM_IDLE]   = { .frame_count = 7,  .frame_duration = 8, .hitbox_start_frame = 0, .hitbox_end_frame = 0 },
+        [ANIM_WALK]   = { .frame_count = 8,  .frame_duration = 6, .hitbox_start_frame = 0, .hitbox_end_frame = 0  },
         [ANIM_ATTACK] = 
         { 
-            .frame_count = 4, .frame_duration = 3, 
-            .hitbox_start_frame = 2, .hitbox_end_frame = 3,
+            .frame_count = 6, .frame_duration = 4, 
+            .hitbox_start_frame = 3, .hitbox_end_frame = 4,
             .hitbox = {
                 .style = HITBOX_STYLE_MELEE_SWEEP,
-                .width = 24.0f, .height = 12.0f, // Large sword swipe
+                .width = 24.0f, .height = 24.0f, // Large sword swipe
                 .offset_x = 18.0f, .offset_y = 8.0f
             }
         },

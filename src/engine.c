@@ -23,7 +23,7 @@ const anim_config_t character_anims[CHAR_TYPE_MAX][NUMBER_OF_ANIMATION_STATES] =
             .hitbox_start_frame = 3, .hitbox_end_frame = 4,
             .hitbox = {
                 .style = HITBOX_STYLE_MELEE_SWEEP,
-                .width = 24.0f, .height = 24.0f, // Large sword swipe
+                .width = 18.0f, .height = 24.0f, // Large sword swipe
                 .offset_x = 18.0f, .offset_y = 8.0f
             }
         },

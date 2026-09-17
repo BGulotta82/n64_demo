@@ -76,7 +76,14 @@ void camera_update_split(camera_t *cam, float p_x, float p_y, float p_w, float p
     float desired_y = p_y + (p_h / 2.0f) - (view_h / 2.0f);
 
     // Forward-facing focus offset
-    float dynamic_bias = (view_w <= 160.0f) ? 24.0f : 48.0f;
+    float dynamic_bias;
+    if (view_w <= 320.0f) {
+        // Vertical Split-Screen Look-Ahead (Provides up to 100 pixels of lead space)
+        dynamic_bias = 100.0f; 
+    } else {
+        // Full Screen Look-Ahead (Provides up to 180 pixels of massive horizon vision)
+        dynamic_bias = 180.0f; 
+    }
 
     if (direction == FACING_LEFT) {
         desired_x -= dynamic_bias;

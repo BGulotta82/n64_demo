@@ -12,7 +12,6 @@ typedef struct {
     sprite_t* sprite_sheet;
 } visual_layout_t;
 
-#if (SCREEN_WIDTH == 640 && SCREEN_HEIGHT == 480)
 visual_layout_t character_visuals[NUMBER_OF_CHARACTER_TYPES][NUMBER_OF_ANIMATION_STATES] = {
     [KNIGHT] = {
         [ANIM_IDLE] = { .offset_x = -12.0f, .offset_y = 0.0f, .flip_offset_correction = 8.0f },
@@ -51,7 +50,6 @@ visual_layout_t character_visuals[NUMBER_OF_CHARACTER_TYPES][NUMBER_OF_ANIMATION
         [ANIM_JUMP]   = { .offset_x = SCALE_VAL(-2), .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(4.0f) }
     }*/
 };
-#endif
 
 void renderer_init(void) {
     display_init(RESOLUTION_640x480, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);

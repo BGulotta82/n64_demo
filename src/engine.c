@@ -151,11 +151,14 @@ void engine_update(game_state_t *state, float dt) {
         return;
     }
 
-    // do we need to check for new players spawning in?
     int player_count = get_player_count();
-    int new_player_count = 0;
-    if (player_count < MAX_PLAYERS) {
-        for (int i = player_count; i < MAX_PLAYERS; i++) {
+
+    // do we need to check for new players spawning in?
+    int joined_players = state->joined_players;
+    if (joined_players < MAX_PLAYERS) {
+        int new_player_count = 0;
+
+        for (int i = joined_players; i <= MAX_PLAYERS-1; i++) {
             input_state *player_input = &state->input[i];
             input_update(player_input, i);     
 
@@ -166,7 +169,7 @@ void engine_update(game_state_t *state, float dt) {
                 new_player_count++;
             }         
         }
-
+    
         if (new_player_count > 0) {
             // do we need to spawn new enemies into the level?
             int num_enemies_to_spawn = g_enemies_per_spawn_point[player_count + new_player_count - 1] - g_enemies_per_spawn_point[player_count - 1];
@@ -175,9 +178,7 @@ void engine_update(game_state_t *state, float dt) {
             return;
         }
     }
-
-    player_count = get_player_count();
-
+    
     for (int i = 0; i < player_count; i++) {
         character* player = get_player_at(i);
         input_state *player_input = &state->input[i];

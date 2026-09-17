@@ -46,7 +46,7 @@ int main(void) {
         for (int i = 0; i < player_count; i++) {
             character *player = get_player_at(i);
             camera_t *camera = get_camera_at(player->meta.id);
-
+                
             // Look up what screen dimensions this specific quadrant/split should look like
             viewport_layout_t layout = viewport_configs[config_idx][player->meta.id];
             

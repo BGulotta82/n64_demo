@@ -142,8 +142,11 @@ void engine_update(game_state_t *state, float dt) {
             }    
 
             load_stage_by_index(state, next_level_index);
-            add_new_player(0, state);
-            state->joined_players++;
+            int player_count = get_player_count();
+            if (player_count == 0) {
+                add_new_player(0, state);
+                state->joined_players++;
+            }
             state->match_state = STATE_PLAYING;
         }
 
@@ -984,10 +987,13 @@ void load_stage_by_index(game_state_t *state, int index) {
         index = 0; // Safe fallback boundary clamp
     }
     
-    cleanup_enemy_registry();
-    cleanup_camera_registry();
-    init_enemy_registry(16);
-    init_camera_registry(MAX_VIEWPORTS);
+    if (previous_state == STATE_GAME_OVER ||
+        previous_state == STATE_WAITING_TO_START){
+        cleanup_enemy_registry();
+        cleanup_camera_registry();
+        init_enemy_registry(16);
+        init_camera_registry(MAX_VIEWPORTS);
+    }
 
     state->level_index = index;
     
@@ -1009,7 +1015,9 @@ void load_stage_by_index(game_state_t *state, int index) {
             // Stop horizontal speeds so they don't slide into the new stage uncontrollably
             character_type type = player->meta.type;
             int player_id = player->meta.id;
+            int health = player->meta.health;
             character_init(player, type, false, player_id);
+            player->meta.health = health;
             determine_new_player_coordinates(player, &state->level);
         }
 

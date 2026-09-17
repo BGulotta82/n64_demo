@@ -52,7 +52,7 @@ visual_layout_t character_visuals[NUMBER_OF_CHARACTER_TYPES][NUMBER_OF_ANIMATION
 };
 
 void renderer_init(void) {
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
+    display_init(RESOLUTION_640x480, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
     rdpq_init();
 
     rdpq_font_t *builtin_font = rdpq_font_load_builtin(FONT_BUILTIN_DEBUG_MONO);
@@ -136,78 +136,73 @@ void draw_game_state(const game_state_t *state)
 }
 
 void draw_dynamic_split_screen(const game_state_t *state) {
-
-
-    /*
-            // Keep the RDP completely stable in standard blending/copy context
-            rdpq_set_mode_standard();
-            
-            // Bypass fill mode entirely! Use a solid color primitive block 
-            // inside standard cycle paths to keep coordinate bounds symmetrical.
-            rdpq_set_prim_color(RGBA32(0, 0, 0, 255));
-            
-            // Draw a completely flat standard box using rdpq_mode primitive texturing overrides
-            // or your custom blanking asset path:
-            rdpq_fill_rectangle(layout.screen_x, layout.screen_y, layout.screen_x + layout.width, layout.screen_y + layout.height);
-
-            rdpq_text_printf(NULL, 1, layout.screen_x + layout.width/2.0f, layout.screen_y + layout.height/2.0f, "PRESS START");
-    
-    */
-
-
     int joined_players = state->joined_players; 
     if (joined_players <= 0) return;
     
     int config_idx = joined_players - 1; 
     int player_count = get_player_count();
-
-    character *active_player = NULL;
+    int enemy_count = get_enemy_count();
 
     for (int i = 0; i < player_count; i++) {
         character *current_player = get_player_at(i);
         camera_t *camera = get_camera_at(current_player->meta.id);
-
-        // Look up the static layout assignment based on the player slot ID
         viewport_layout_t layout = viewport_configs[config_idx][current_player->meta.id];
 
         // --- N64 HARDWARE SCISSOR WINDOW GATE ---
         rdpq_set_scissor(layout.screen_x, layout.screen_y, layout.screen_x + layout.width, layout.screen_y + layout.height);
 
-         rdpq_set_mode_standard(); 
-
-        // --- ACTIVE PLAYER RENDERING LOOP PATH ---
-        // Draw Map Tiles using stabilized tile space constraints
-        draw_map_tiles(&state->level, camera, layout.screen_x, layout.screen_y, layout.width, layout.height);
-
-        debug_draw_projectiles_hitbox(camera, layout.screen_x, layout.screen_y);
+        // Pre-calculate floored camera coordinates once per viewport to save heavy FPU cycles
+        int cam_x_floor = (int)floorf(camera->x);
+        int cam_y_floor = (int)floorf(camera->y);
 
         // =========================================================================
-        // --- RENDER PLAYERS ---
-        // =========================================================================        
+        // PASS 1: BACKGROUND & WORLD SPRITES (Standard / Copy Mode)
+        // =========================================================================
+        // draw_map_tiles will set its own internal copy mode cleanly
+        draw_map_tiles(&state->level, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, layout.width, layout.height);
+
+        rdpq_sync_pipe();           
+        rdpq_set_mode_standard(); 
+        rdpq_mode_alphacompare(1); 
+
+        // Render Players
         for (int p = 0; p < player_count; p++) {
             character *player = get_player_at(p);
-            
-            // Draw the player's visual sprite
-            draw_single_character(player, camera, layout.screen_x, layout.screen_y, layout.width, layout.height, p);
-            
-            // Draw the player's matching physical hitbox (Bright Green)
-            debug_draw_character_hitbox(player, camera, layout.screen_x, layout.screen_y, 0x00FF00FF);
+            draw_single_character(player, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, layout.width, layout.height, p);
         }
 
-        // =========================================================================
-        // --- RENDER AI MONSTERS ---
-        // =========================================================================
-        int enemy_count = get_enemy_count();
+        // Render Enemies
         for (int e = 0; e < enemy_count; e++) {
             character *enemy = get_enemy_at(e);
-            if (enemy == NULL) continue;
-
-            // Draw the enemy's visual sprite
-            draw_single_character(enemy, camera, layout.screen_x, layout.screen_y, layout.width, layout.height, e);
-            
-            // Draw the enemy's matching physical hitbox (Bright Red)
-            debug_draw_character_hitbox(enemy, camera, layout.screen_x, layout.screen_y, 0xFF0000FF);
+            draw_single_character(enemy, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, layout.width, layout.height, e);
         }
+
+        // =========================================================================
+        // PASS 2: BATCHED HITBOXES & DEBUG OVERLAYS (Fill Mode)
+        // =========================================================================
+        // We set Fill Mode ONCE here, completely eliminating state flipping inside the loop!
+        rdpq_set_mode_fill(RGBA32(0, 255, 0, 255)); // Default to player green
+
+        // Draw Player Hitboxes
+        for (int p = 0; p < player_count; p++) {
+            character *player = get_player_at(p);
+
+            // Pass our pre-calculated camera variables to bypass inner floorf() calls
+            debug_draw_character_hitbox(player, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, RGBA32(0, 255, 0, 255));
+        }
+
+        // Switch color once for enemies
+        rdpq_set_mode_fill(RGBA32(255, 0, 0, 255));
+
+        // Draw Enemy Hitboxes
+        for (int e = 0; e < enemy_count; e++) {
+            character *enemy = get_enemy_at(e);
+
+            debug_draw_character_hitbox(enemy, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, RGBA32(255, 0, 0, 255));
+        }
+
+        // Clean up project hitboxes (Make sure this function doesn't fight over states)
+        debug_draw_projectiles_hitbox(cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y);
     }
 
     // Reset scissor to full-screen limits safely
@@ -215,9 +210,38 @@ void draw_dynamic_split_screen(const game_state_t *state) {
     rdpq_set_mode_standard(); 
     rdpq_mode_alphacompare(1);
     draw_hud(state);
+}
 
-    if (active_player != NULL){
-        debug_render_character_telemetry(active_player, 16.0f, 20.0f);
+void debug_draw_character_hitbox(const character *chr, int cam_x, int cam_y, int off_x, int off_y, color_t color_rgba) {
+    int chr_x_floor = (int)floorf(chr->x);
+    int chr_y_floor = (int)floorf(chr->y);
+
+    int screen_x = chr_x_floor - cam_x + off_x;
+    int screen_y = chr_y_floor - cam_y + off_y;
+
+    int x1 = screen_x;
+    int y1 = screen_y;
+    int x2 = screen_x + chr->meta.width;
+    int y2 = screen_y + chr->meta.height;
+
+    // Draw lines via optimized thin rectangles without touching RDP state registers
+    rdpq_fill_rectangle(x1, y1, x2, y1 + 1);       // Top
+    rdpq_fill_rectangle(x1, y2 - 1, x2, y2);       // Bottom
+    rdpq_fill_rectangle(x1, y1, x1 + 1, y2);       // Left
+    rdpq_fill_rectangle(x2 - 1, y1, x2, y2);       // Right
+
+    // Optional Secondary Hitbox Processing
+    rect_t hitbox;
+    if (get_character_secondary_hitbox(chr, &hitbox)) {
+        int sx1 = (int)floorf(hitbox.x1) - cam_x + off_x;
+        int sy1 = (int)floorf(hitbox.y1) - cam_y + off_y;
+        int sx2 = (int)floorf(hitbox.x2) - cam_x + off_x;
+        int sy2 = (int)floorf(hitbox.y2) - cam_y + off_y;
+
+        rdpq_fill_rectangle(sx1, sy1, sx2, sy1 + 1);   // Top
+        rdpq_fill_rectangle(sx1, sy2 - 1, sx2, sy2);   // Bottom
+        rdpq_fill_rectangle(sx1, sy1, sx1 + 1, sy2);   // Left
+        rdpq_fill_rectangle(sx2 - 1, sy1, sx2, sy2);   // Right
     }
 }
 
@@ -254,157 +278,46 @@ void debug_render_character_telemetry(const character *c, float x, float y) {
     rdpq_text_print(NULL, 1, x, y, msg);
 }
 
-void debug_draw_character_hitbox(const character *chr, const camera_t *active_cam, int off_x, int off_y, uint32_t color_rgba) {
-    if (!chr) return;
-
-    // 1. Calculate the exact screen space position using the same floored camera math
-    int cam_x_floor = (int)floorf(active_cam->x);
-    int cam_y_floor = (int)floorf(active_cam->y);
-    int chr_x_floor = (int)floorf(chr->x);
-    int chr_y_floor = (int)floorf(chr->y);
-
-    int screen_x = chr_x_floor - cam_x_floor + off_x;
-    int screen_y = chr_y_floor - cam_y_floor + off_y;
-
-    // 2. Extract the physical bounds directly from the character's physics meta data
-    int x1 = screen_x;
-    int y1 = screen_y;
-    int x2 = screen_x + chr->meta.width;
-    int y2 = screen_y + chr->meta.height;
-
-    // 3. Configure the N64 RDP Blitter to draw primitive outlines
-    rdpq_set_mode_fill(RGBA32(
-        (color_rgba >> 24) & 0xFF,
-        (color_rgba >> 16) & 0xFF,
-        (color_rgba >> 8)  & 0xFF,
-        color_rgba         & 0xFF
-    ));
-
-    // Draw the 4 edges of the box using lines or tight fills
-    // Top Edge
-    rdpq_fill_rectangle(x1, y1, x2, y1 + 1);
-    // Bottom Edge
-    rdpq_fill_rectangle(x1, y2 - 1, x2, y2);
-    // Left Edge
-    rdpq_fill_rectangle(x1, y1, x1 + 1, y2);
-    // Right Edge
-    rdpq_fill_rectangle(x2 - 1, y1, x2, y2);
-
-
-    debug_draw_secondary_hitbox(chr, active_cam, off_x, off_y);
-}
-
-void debug_draw_secondary_hitbox(const character *chr, const camera_t *active_cam, int off_x, int off_y)
-{
-    rect_t hitbox;
-    if (!get_character_secondary_hitbox(chr, &hitbox)) {
-        return; // No active hitbox right now
-    }
-
-    // Convert the extracted world space coordinates into screen space using floored camera math
-    int cam_x_floor = (int)floorf(active_cam->x);
-    int cam_y_floor = (int)floorf(active_cam->y);
-
-    int x1 = (int)floorf(hitbox.x1) - cam_x_floor + off_x;
-    int y1 = (int)floorf(hitbox.y1) - cam_y_floor + off_y;
-    int x2 = (int)floorf(hitbox.x2) - cam_x_floor + off_x;
-    int y2 = (int)floorf(hitbox.y2) - cam_y_floor + off_y;
-
-    // Draw the 4 edges of the box
-    rdpq_fill_rectangle(x1, y1, x2, y1 + 1);       // Top
-    rdpq_fill_rectangle(x1, y2 - 1, x2, y2);       // Bottom
-    rdpq_fill_rectangle(x1, y1, x1 + 1, y2);       // Left
-    rdpq_fill_rectangle(x2 - 1, y1, x2, y2);       // Right
-}
-
-void debug_draw_projectiles_hitbox(const camera_t *active_cam, int off_x, int off_y)
-{
-    // Convert camera space into floors once to save cycles during loop operations
-    int cam_x_floor = (int)floorf(active_cam->x);
-    int cam_y_floor = (int)floorf(active_cam->y);
-
-    // Get the global projectile count (using the getter function strategy)
-    int proj_count = get_projectile_count();
-
-    for (int i = 0; i < proj_count; i++) {
-        projectile_t *proj = get_projectile_at(i);
-        if (!proj) continue;
-
-        // Extract projectile bounds from world coordinates
-        float p_x1 = proj->x;
-        float p_y1 = proj->y;
-        float p_x2 = proj->x + (float)proj->meta.width;
-        float p_y2 = proj->y + (float)proj->meta.height;
-
-        // Convert world-space box coordinates into camera screen-space
-        int x1 = (int)floorf(p_x1) - cam_x_floor + off_x;
-        int y1 = (int)floorf(p_y1) - cam_y_floor + off_y;
-        int x2 = (int)floorf(p_x2) - cam_x_floor + off_x;
-        int y2 = (int)floorf(p_y2) - cam_y_floor + off_y;
-
-        // Set the debug rectangle color depending on ownership
-        if (proj->meta.is_enemy) {
-            // Enemy Projectile: Bright Red Tint
-            rdpq_set_mode_fill(RGBA32(255, 0, 0, 255));
-        } else {
-            // Player Projectile: Cyan / Bright Blue Tint
-            rdpq_set_mode_fill(RGBA32(0, 255, 255, 255));
-        }
-
-        // Draw the 4 edges of the projectile bounding box
-        rdpq_fill_rectangle(x1, y1, x2, y1 + 1);       // Top
-        rdpq_fill_rectangle(x1, y2 - 1, x2, y2);       // Bottom
-        rdpq_fill_rectangle(x1, y1, x1 + 1, y2);       // Left
-        rdpq_fill_rectangle(x2 - 1, y1, x2, y2);       // Right
-    }
-}
-
-void draw_single_character(const character *chr, const camera_t *active_cam, int off_x, int off_y, int view_w, int view_h, int character_index) {
+// Update your signature to accept the pre-calculated floored camera parameters
+void draw_single_character(const character *chr, int cam_x_floor, int cam_y_floor, int off_x, int off_y, int view_w, int view_h, int character_index) {
     if (!chr) return;
         
-    // =========================================================================
     // --- MULTI-VIEWPORT INDEPENDENT INVINCIBILITY FLICKER ---
-    // =========================================================================
     if (!chr->meta.is_enemy && chr->meta.invincibility_frames > 0) {
         if (chr->meta.invincibility_frames % 4 < 2) {
             return; 
         }
     }
 
-    // =========================================================================
-    // --- FLOORED COORDINATE SHIFTS & SCREEN POSITIONING ---
-    // =========================================================================
-    int cam_x_floor = (int)floorf(active_cam->x);
-    int cam_y_floor = (int)floorf(active_cam->y);
+    // Convert coordinates using pre-calculated parent floor positions
     int chr_x_floor = (int)floorf(chr->x);
     int chr_y_floor = (int)floorf(chr->y);
 
     int screen_x = chr_x_floor - cam_x_floor + off_x;
     int screen_y = chr_y_floor - cam_y_floor + off_y;
 
-    // Fetch the active sprite asset sheet
     sprite_t *sheet = character_visuals[chr->meta.type][chr->meta.current_anim].sprite_sheet;
     if (!sheet) return;
 
-    int tile_dim = sheet->height; // Returns cell dimensions (e.g., 32)
+    int tile_dim = sheet->height; 
 
-    // =========================================================================
-    // --- EXPLICIT DATA-DRIVEN MANUAL PIXEL OFFSETS ---
-    // =========================================================================
     const visual_layout_t *vis = &character_visuals[chr->meta.type][chr->meta.current_anim];
-
-    screen_x += vis->offset_x;
+    
+    // Apply offset vectors depending on facing direction to fix tracking drift
+    if (chr->physics.facing_direction == FACING_LEFT) {
+        // Adjust mirroring screen coordinate translation anchors safely
+        screen_x += vis->offset_x + (int)vis->flip_offset_correction;
+    } else {
+        screen_x += vis->offset_x;
+    }
     screen_y += vis->offset_y;
 
-    // =========================================================================
-
-    // Dynamic Viewport Window Culling using our adjusted base coordinates
+    // Viewport Window Culling
     if (screen_x + tile_dim < off_x  || screen_x > off_x + view_w ||
         screen_y + tile_dim < off_y || screen_y > off_y + view_h) {
         return; 
     }
 
-    // Safety checks for frame bounds to protect TMEM boundaries
     int max_sheet_frames = sheet->width / tile_dim;
     int visual_frame = chr->meta.current_anim_frame_index;
     if (visual_frame >= max_sheet_frames || visual_frame < 0) {
@@ -413,61 +326,84 @@ void draw_single_character(const character *chr, const camera_t *active_cam, int
 
     int tex_src_x = visual_frame * tile_dim;
 
-    float flip_scale_x = 1.0f;
-    float center_x = (float)tile_dim / 2.0f;
-    float center_y = (float)tile_dim / 2.0f;
-
-    // Adjust the RDP transformation anchor if mirrored to sync with hitbox
-    if (chr->physics.facing_direction == FACING_LEFT) {
-        flip_scale_x = -1.0f; 
-        
-      // Dynamically pull the custom pixel correction factor for this character type
-        center_x += ((float)vis->offset_x * 2.0f) + vis->flip_offset_correction; 
-     }
-
+    // Reconfigure parameters to use native hardware blit structures instead of negative scale matrices
     rdpq_blitparms_t parms = {
         .s0 = tex_src_x,              
         .t0 = 0,                      
         .width  = tile_dim,           
         .height = tile_dim,           
-        
-        .scale_x = flip_scale_x,      // Flips the sprite when negative
-        
-        .cx = center_x,               // Adjusted center axis for correct mirroring
-        .cy = center_y,               
+        .flip_x = (chr->physics.facing_direction == FACING_LEFT) // Native HW flip!
     };
     
-    rdpq_set_mode_standard(); // Configures the RDP blender for sprite layers
-    rdpq_mode_alphacompare(1); // Drops solid background pixels if using a color-key
-    
+    // Direct hardware asset draw call
     rdpq_sprite_blit(sheet, (float)screen_x, (float)screen_y, &parms);
 }
 
-void draw_map_tiles(const level_t *level, const camera_t *active_cam, int off_x, int off_y, int view_w, int view_h) {
+void debug_draw_projectiles_hitbox(int cam_x_floor, int cam_y_floor, int off_x, int off_y)
+{
+    int proj_count = get_projectile_count();
+    if (proj_count <= 0) return;
+
+    // Track active state to minimize RDP pipeline flush stalls
+    int current_rdp_mode = -1; // -1 = unassigned, 0 = player, 1 = enemy
+
+    for (int i = 0; i < proj_count; i++) {
+        projectile_t *proj = get_projectile_at(i);
+        if (!proj) continue;
+
+        // Fast conversion without floating-point expansion logic
+        int x1 = (int)floorf(proj->x) - cam_x_floor + off_x;
+        int y1 = (int)floorf(proj->y) - cam_y_floor + off_y;
+        int x2 = x1 + proj->meta.width;
+        int y2 = y1 + proj->meta.height;
+
+        // Stateful check: Only modify RDP fill register when ownership changes!
+        if (proj->meta.is_enemy) {
+            if (current_rdp_mode != 1) {
+                rdpq_set_mode_fill(RGBA32(255, 0, 0, 255)); // Red
+                current_rdp_mode = 1;
+            }
+        } else {
+            if (current_rdp_mode != 0) {
+                rdpq_set_mode_fill(RGBA32(0, 255, 255, 255)); // Cyan
+                current_rdp_mode = 0;
+            }
+        }
+
+        // Fast Draw
+        rdpq_fill_rectangle(x1, y1, x2, y1 + 1);       
+        rdpq_fill_rectangle(x1, y2 - 1, x2, y2);       
+        rdpq_fill_rectangle(x1, y1, x1 + 1, y2);       
+        rdpq_fill_rectangle(x2 - 1, y1, x2, y2);       
+    }
+}
+
+void draw_map_tiles(const level_t *level, int cam_x_floor, int cam_y_floor, int off_x, int off_y, int view_w, int view_h) {
     if (!level || !level_tilesheet) return;
 
-    rdpq_set_mode_standard();
+    // 1. Establish the RDP state ONCE
+    rdpq_set_mode_copy(true); 
     rdpq_mode_tlut(TLUT_RGBA16);
     rdpq_tex_upload_tlut(sprite_get_palette(level_tilesheet), 0, 16);
 
-    // Convert camera floats safely to tile tracking integers once
-    int cam_x_floor = (int)floorf(active_cam->x);
-    int cam_y_floor = (int)floorf(active_cam->y);
+    // Get raw pointer to surface details
+    surface_t surf = sprite_get_pixels(level_tilesheet);
+
+    // 💡 FIX: Track the last loaded tile ID to create a TMEM cache
+    int last_tile_id = -1;
 
     int start_x = cam_x_floor / TILE_SIZE;
     int start_y = cam_y_floor / TILE_SIZE;
     
-    // The loop inherently grabs exactly what is visible (plus padding for scrolling offsets)
-    int end_x = (cam_x_floor + view_w) / TILE_SIZE + 2;
-    int end_y = (cam_y_floor + view_h) / TILE_SIZE + 2;
+    int end_x = (cam_x_floor + view_w) / TILE_SIZE + 1;
+    int end_y = (cam_y_floor + view_h) / TILE_SIZE + 1;
 
-    // Safety clamps on map constraints to prevent off-boundary array reads
+    // Safety clamps on map constraints
     if (start_x < 0) start_x = 0;
     if (start_y < 0) start_y = 0;
     if (end_x > MAP_WIDTH)  end_x = MAP_WIDTH;
     if (end_y > MAP_HEIGHT) end_y = MAP_HEIGHT;
 
-    // Pre-calculate screen space alignment anchors outside the heavy loops
     int base_screen_x = off_x - cam_x_floor;
     int base_screen_y = off_y - cam_y_floor;
     int hslices = level_tilesheet->hslices;
@@ -478,30 +414,33 @@ void draw_map_tiles(const level_t *level, const camera_t *active_cam, int off_x,
 
         for (int x = start_x; x < end_x; x++) {
             uint8_t tile_id = level->map_data[map_row_offset + x];
-            if (tile_id == 0 ||
-                tile_id == PLAYER_SPAWN ||
-                tile_id == ENEMY_SPAWN ||
-                tile_id == BOSS_SPAWN) continue; // Skip empty space air tiles
+            
+            if (tile_id == 0 || tile_id == PLAYER_SPAWN || tile_id == ENEMY_SPAWN || tile_id == BOSS_SPAWN) {
+                continue; 
+            }
 
             int tile_index = tile_id - 1;
             
-            // Calculate source texture coordinates
+            // Source coordinates mapping out of the texture sheet
             int tile_x = (tile_index % hslices) * TILE_SIZE;
             int tile_y = (tile_index / hslices) * TILE_SIZE;
-
             int screen_x = (x * TILE_SIZE) + base_screen_x;
 
-            rdpq_blitparms_t parms = {
-                .s0 = tile_x,
-                .t0 = tile_y,
-                .width = TILE_SIZE,
-                .height = TILE_SIZE,
-            };
+            // 🏎️ TMEM CACHE CHECK: Only reload TMEM if the tile type changes!
+            if (tile_id != last_tile_id) {
+                rdpq_tex_upload_sub(TILE0, &surf, NULL, tile_x, tile_y, tile_x + TILE_SIZE, tile_y + TILE_SIZE);
+                last_tile_id = tile_id;
+            }
 
-            // Blit directly to the hardware matrix
-            rdpq_sprite_blit(level_tilesheet, screen_x, screen_y, &parms);
+            // Inner loop remains incredibly lightweight
+            rdpq_texture_rectangle(TILE0, 
+                                   screen_x, screen_y, 
+                                   screen_x + TILE_SIZE, screen_y + TILE_SIZE, 
+                                   tile_x, tile_y);
         }
     }
+    
+    rdpq_sync_pipe();
 }
 
 void draw_hud(const game_state_t *state) {

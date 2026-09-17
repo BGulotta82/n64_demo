@@ -4,17 +4,37 @@ static camera_registry_t g_cameras = { NULL, 0, 0 };
 
 // Dedicated layout configurations supporting 1, 2, or 4-way screen grids
 viewport_layout_t viewport_configs[4][4] = {
-    // --- 1 PLAYER ACTIVE: Full Screen (320 x 240) ---
-    { {0, 0, 320, 240}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0} },
+    // --- 1 PLAYER ACTIVE: Full Screen ---
+    { 
+        {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT}, 
+        {0, 0, 0, 0}, 
+        {0, 0, 0, 0}, 
+        {0, 0, 0, 0} 
+    },
 
-    // --- 2 PLAYERS ACTIVE: Horizontal Dual Split (320 x 120 each) ---
-    { {0, 0, 320, 120}, {0, 120, 320, 120}, {0, 0, 0, 0}, {0, 0, 0, 0} },
+    // --- 2 PLAYERS ACTIVE: Horizontal Dual Split (Top / Bottom) ---
+    { 
+        {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT / 2}, 
+        {0, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT / 2}, 
+        {0, 0, 0, 0}, 
+        {0, 0, 0, 0} 
+    },
 
-    // --- 3 PLAYERS ACTIVE: Quad Grid Setup (P4 slot sits black or holds a mini-map) ---
-    { {0, 0, 160, 120}, {160, 0, 160, 120}, {0, 120, 160, 120}, {160, 120, 160, 120} },
+    // --- 3 PLAYERS ACTIVE: Quad Grid Setup (P4 slot empty/black) ---
+    { 
+        {0, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2}, 
+        {SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2}, 
+        {0, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2}, 
+        {SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2} 
+    },
 
-    // --- 4 PLAYERS ACTIVE: Full Quad Grid Display (160 x 120 each) ---
-    { {0, 0, 160, 120}, {160, 0, 160, 120}, {0, 120, 160, 120}, {160, 120, 160, 120} }
+    // --- 4 PLAYERS ACTIVE: Full Quad Grid Display ---
+    { 
+        {0, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2}, 
+        {SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2}, 
+        {0, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2}, 
+        {SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2} 
+    }
 };
 
 void camera_init(camera_t *cam, float world_width, float world_height, float screen_width, float screen_height, float spawn_x, float spawn_y) {

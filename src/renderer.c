@@ -178,10 +178,12 @@ void draw_dynamic_split_screen(const game_state_t *state) {
         rdpq_set_mode_standard(); 
         rdpq_mode_alphacompare(1); 
 
+        #ifdef DEBUG
         float x_offset = 32.0f;
         float y_offset = 32.0f;
 
         debug_render_character_telemetry(current_player, layout.screen_x + x_offset, layout.screen_y + y_offset);
+        #endif
 
         // Render Players
         for (int p = 0; p < player_count; p++) {
@@ -201,6 +203,7 @@ void draw_dynamic_split_screen(const game_state_t *state) {
         // We set Fill Mode ONCE here, completely eliminating state flipping inside the loop!
         rdpq_set_mode_fill(RGBA32(0, 255, 0, 255)); // Default to player green
 
+        #ifdef DEBUG
         // Draw Player Hitboxes
         for (int p = 0; p < player_count; p++) {
             character *player = get_player_at(p);
@@ -208,6 +211,7 @@ void draw_dynamic_split_screen(const game_state_t *state) {
             // Pass our pre-calculated camera variables to bypass inner floorf() calls
             debug_draw_character_hitbox(player, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, RGBA32(0, 255, 0, 255));
         }
+        #endif
 
         // Switch color once for enemies
         rdpq_set_mode_fill(RGBA32(255, 0, 0, 255));

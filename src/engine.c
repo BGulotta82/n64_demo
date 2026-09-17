@@ -260,7 +260,8 @@ void engine_update(game_state_t *state, float dt) {
 void add_new_player(int player_id, game_state_t *state)
 {
     character new_player = {0};
-    character_type type = rand() % 4;
+    //character_type type = rand() % 4;
+    character_type type = KNIGHT;
     character_init(&new_player, type, false, player_id);
     determine_new_player_coordinates(&new_player, &state->level);
     spawn_player(&new_player);

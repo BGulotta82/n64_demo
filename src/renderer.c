@@ -12,44 +12,46 @@ typedef struct {
     sprite_t* sprite_sheet;
 } visual_layout_t;
 
+#if (SCREEN_WIDTH == 640 && SCREEN_HEIGHT == 480)
 visual_layout_t character_visuals[NUMBER_OF_CHARACTER_TYPES][NUMBER_OF_ANIMATION_STATES] = {
     [KNIGHT] = {
-        [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
-        [ANIM_WALK]   = { .offset_x = 8,  .offset_y = 16, .flip_offset_correction = -14.0f }, // Lean forward slightly
-        [ANIM_ATTACK] = { .offset_x = 9, .offset_y = 15,   .flip_offset_correction = -18.0f }, // Sword extends forward
-        [ANIM_JUMP] = {   .offset_x = 8,    .offset_y = 16, .flip_offset_correction = -15.0f }
+        [ANIM_IDLE] = { .offset_x = -12.0f, .offset_y = 0.0f, .flip_offset_correction = 8.0f },
+        [ANIM_WALK]   = { .offset_x = -8.0f, .offset_y = 0.0f, .flip_offset_correction = 0.0f }, 
+        [ANIM_ATTACK] = { .offset_x = -8.0f, .offset_y = 0.0f, .flip_offset_correction = 0.0f }, 
+        [ANIM_JUMP]   = { .offset_x = -8.0f, .offset_y = 0.0f, .flip_offset_correction = 0.0f }
     },
-    [ELF] = {
-        [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
-        [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
-        [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
-        [ANIM_JUMP] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }
+    /*[ELF] = {
+        [ANIM_IDLE]   = { .offset_x = SCALE_VAL(4),  .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(2.0f) },
+        [ANIM_WALK]   = { .offset_x = SCALE_VAL(6),  .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(1.0f) }, 
+        [ANIM_ATTACK] = { .offset_x = SCALE_VAL(-2), .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(4.0f) }, 
+        [ANIM_JUMP]   = { .offset_x = SCALE_VAL(-2), .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(4.0f) }
     },
     [WIZARD] = {
-        [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
-        [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
-        [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
-        [ANIM_JUMP] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }
+        [ANIM_IDLE]   = { .offset_x = SCALE_VAL(4),  .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(2.0f) },
+        [ANIM_WALK]   = { .offset_x = SCALE_VAL(6),  .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(1.0f) }, 
+        [ANIM_ATTACK] = { .offset_x = SCALE_VAL(-2), .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(4.0f) }, 
+        [ANIM_JUMP]   = { .offset_x = SCALE_VAL(-2), .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(4.0f) }
     },
     [DWARF] = {
-        [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
-        [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
-        [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
-        [ANIM_JUMP] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }
+        [ANIM_IDLE]   = { .offset_x = SCALE_VAL(4),  .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(2.0f) },
+        [ANIM_WALK]   = { .offset_x = SCALE_VAL(6),  .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(1.0f) }, 
+        [ANIM_ATTACK] = { .offset_x = SCALE_VAL(-2), .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(4.0f) }, 
+        [ANIM_JUMP]   = { .offset_x = SCALE_VAL(-2), .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(4.0f) }
     },
     [GOOMBA] = {
-        [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
-        [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
-        [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
-        [ANIM_JUMP] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }
+        [ANIM_IDLE]   = { .offset_x = SCALE_VAL(4),  .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(2.0f) },
+        [ANIM_WALK]   = { .offset_x = SCALE_VAL(6),  .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(1.0f) }, 
+        [ANIM_ATTACK] = { .offset_x = SCALE_VAL(-2), .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(4.0f) }, 
+        [ANIM_JUMP]   = { .offset_x = SCALE_VAL(-2), .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(4.0f) }
     },
     [SKELETON] = {
-        [ANIM_IDLE]   = { .offset_x = 4,  .offset_y = 16, .flip_offset_correction = 2.0f },
-        [ANIM_WALK]   = { .offset_x = 6,  .offset_y = 16, .flip_offset_correction = 1.0f }, // Lean forward slightly
-        [ANIM_ATTACK] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }, // Sword extends forward
-        [ANIM_JUMP] = { .offset_x = -2, .offset_y = 16, .flip_offset_correction = 4.0f }
-    }
+        [ANIM_IDLE]   = { .offset_x = SCALE_VAL(4),  .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(2.0f) },
+        [ANIM_WALK]   = { .offset_x = SCALE_VAL(6),  .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(1.0f) }, 
+        [ANIM_ATTACK] = { .offset_x = SCALE_VAL(-2), .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(4.0f) }, 
+        [ANIM_JUMP]   = { .offset_x = SCALE_VAL(-2), .offset_y = SCALE_VAL(16), .flip_offset_correction = SCALE_FLT(4.0f) }
+    }*/
 };
+#endif
 
 void renderer_init(void) {
     display_init(RESOLUTION_640x480, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
@@ -63,25 +65,25 @@ void renderer_init(void) {
     character_visuals[KNIGHT][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
     character_visuals[KNIGHT][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-attack.sprite");
     character_visuals[KNIGHT][ANIM_JUMP].sprite_sheet   = sprite_load("rom:/knight-jump.sprite");
-    character_visuals[ELF][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
-    character_visuals[ELF][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
-    character_visuals[ELF][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
-    character_visuals[ELF][ANIM_JUMP].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
-    character_visuals[WIZARD][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
-    character_visuals[WIZARD][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
-    character_visuals[WIZARD][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
-    character_visuals[WIZARD][ANIM_JUMP].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
-    character_visuals[DWARF][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
-    character_visuals[DWARF][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
-    character_visuals[DWARF][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
-    character_visuals[DWARF][ANIM_JUMP].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
-    character_visuals[GOOMBA][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
-    character_visuals[GOOMBA][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
-    character_visuals[GOOMBA][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
-    character_visuals[SKELETON][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
-    character_visuals[SKELETON][ANIM_WALK].sprite_sheet   = sprite_load("rom:/knight-walk.sprite");
-    character_visuals[SKELETON][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/knight-idle.sprite");
-    character_visuals[SKELETON][ANIM_JUMP].sprite_sheet   = sprite_load("rom:/knight-jump.sprite");
+    character_visuals[ELF][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/elf-idle.sprite");
+    character_visuals[ELF][ANIM_WALK].sprite_sheet   = sprite_load("rom:/elf-walk.sprite");
+    character_visuals[ELF][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/elf-idle.sprite");
+    character_visuals[ELF][ANIM_JUMP].sprite_sheet   = sprite_load("rom:/elf-idle.sprite");
+    character_visuals[WIZARD][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/elf-idle.sprite");
+    character_visuals[WIZARD][ANIM_WALK].sprite_sheet   = sprite_load("rom:/elf-walk.sprite");
+    character_visuals[WIZARD][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/elf-idle.sprite");
+    character_visuals[WIZARD][ANIM_JUMP].sprite_sheet   = sprite_load("rom:/elf-idle.sprite");
+    character_visuals[DWARF][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/elf-idle.sprite");
+    character_visuals[DWARF][ANIM_WALK].sprite_sheet   = sprite_load("rom:/elf-walk.sprite");
+    character_visuals[DWARF][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/elf-idle.sprite");
+    character_visuals[DWARF][ANIM_JUMP].sprite_sheet   = sprite_load("rom:/elf-idle.sprite");
+    character_visuals[GOOMBA][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/elf-idle.sprite");
+    character_visuals[GOOMBA][ANIM_WALK].sprite_sheet   = sprite_load("rom:/elf-walk.sprite");
+    character_visuals[GOOMBA][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/elf-idle.sprite");
+    character_visuals[SKELETON][ANIM_IDLE].sprite_sheet   = sprite_load("rom:/elf-idle.sprite");
+    character_visuals[SKELETON][ANIM_WALK].sprite_sheet   = sprite_load("rom:/elf-walk.sprite");
+    character_visuals[SKELETON][ANIM_ATTACK].sprite_sheet   = sprite_load("rom:/elf-idle.sprite");
+    character_visuals[SKELETON][ANIM_JUMP].sprite_sheet   = sprite_load("rom:/elf-jump.sprite");
 }
 
 // Update your function signature to accept surface_t *disp

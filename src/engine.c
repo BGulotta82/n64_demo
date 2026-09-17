@@ -146,6 +146,8 @@ void engine_update(game_state_t *state, float dt) {
             state->joined_players++;
             state->match_state = STATE_PLAYING;
         }
+
+        state->frame++;
         return;
     }
 
@@ -169,6 +171,7 @@ void engine_update(game_state_t *state, float dt) {
             // do we need to spawn new enemies into the level?
             int num_enemies_to_spawn = g_enemies_per_spawn_point[player_count + new_player_count - 1] - g_enemies_per_spawn_point[player_count - 1];
             add_new_enemies(state, num_enemies_to_spawn);
+            state->frame++;
             return;
         }
     }

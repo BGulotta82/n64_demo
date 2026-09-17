@@ -16,20 +16,34 @@ extern float physics_constants[NUMBER_OF_CHARACTER_TYPES][9];
 
 
 void character_init(character *character, character_type type, bool is_enemy, int id);
-void character_update(character *self, character *players, input_state *input, uint8_t *map_data, float dt);
-void check_no_input(input_state *input, character *character);
+void character_update(character *character, input_state *input, uint8_t *map_data, float dt);
+void check_no_input(character *character, input_state *input);
 void check_grounded(character *character, uint8_t *map_data);
 void check_wall_collision(character *character, uint8_t *map_data);
 void check_ceiling_collision(character *character, uint8_t *map_data);
-void check_character_collisions(character *self, character *players, float dt);
-float approach(float current, float target, float step);
+void check_character_collisions(character *self, float dt);
 void apply_gravity(character *character, float dt);
 void apply_friction(character *character, input_state *input, float dt);
 void handle_move_left(character *character, input_state *input, float dt);
 void handle_move_right(character *character, input_state *input, float dt);
 void move_character(character *character, float dt);
-void handle_jump(character *self, character *players, input_state *input);
+void handle_jump(character *character, input_state *input);
 void handle_attack(character *character, input_state *input);
-character * find_furthest_active_player(character *players, const character *self);
 
+int get_enemy_count(void);
+character* get_enemy_at(int index);
+void init_enemy_registry(int initial_capacity);
+bool spawn_enemy(const character *new_enemy);
+void destroy_enemy(int index);
+void cleanup_enemy_registry(void);
+
+int get_player_count(void);
+character* get_player_at(int index);
+void init_player_registry(int initial_capacity);
+bool spawn_player(const character *new_player);
+void destroy_player(int index);
+void cleanup_player_registry(void);
+
+
+float approach(float current, float target, float step);
  #endif // CHARACTER_H

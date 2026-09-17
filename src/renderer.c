@@ -1,7 +1,6 @@
 #include "renderer.h"
 
 // Global font handle
-extern camera_t cameras[MAX_VIEWPORTS];
 extern anim_config_t character_anims[CHAR_TYPE_MAX][NUMBER_OF_ANIMATION_STATES];
 
 sprite_t* level_tilesheet;
@@ -137,56 +136,77 @@ void draw_game_state(const game_state_t *state)
 }
 
 void draw_dynamic_split_screen(const game_state_t *state) {
-    // Determine the viewport configuration layout structure safely
-    int active_count = 0;
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (state->players[i].meta.state & ACTIVE) active_count++;
-    }
 
-    if (active_count == 0) return;
 
-    int config_idx = active_count - 1; 
+    /*
+            // Keep the RDP completely stable in standard blending/copy context
+            rdpq_set_mode_standard();
+            
+            // Bypass fill mode entirely! Use a solid color primitive block 
+            // inside standard cycle paths to keep coordinate bounds symmetrical.
+            rdpq_set_prim_color(RGBA32(0, 0, 0, 255));
+            
+            // Draw a completely flat standard box using rdpq_mode primitive texturing overrides
+            // or your custom blanking asset path:
+            rdpq_fill_rectangle(layout.screen_x, layout.screen_y, layout.screen_x + layout.width, layout.screen_y + layout.height);
 
-    // Loop through ALL camera profiles sequentially to render screens reliably
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-        // Only skip rendering if the profile is truly unallocated,
-        // but decouple player survival states from structural loop limits.
-        if (!(state->players[i].meta.state & ACTIVE)) continue;
+            rdpq_text_printf(NULL, 1, layout.screen_x + layout.width/2.0f, layout.screen_y + layout.height/2.0f, "PRESS START");
+    
+    */
 
-        int current_player_id = state->players[i].meta.id;
-        viewport_layout_t layout = viewport_configs[config_idx][current_player_id];
+
+    int joined_players = state->joined_players; 
+    if (joined_players <= 0) return;
+    
+    int config_idx = joined_players - 1; 
+    int player_count = get_player_count();
+
+    character *active_player = NULL;
+
+    for (int i = 0; i < player_count; i++) {
+        character *current_player = get_player_at(i);
+        camera_t *camera = get_camera_at(current_player->meta.id);
+
+        // Look up the static layout assignment based on the player slot ID
+        viewport_layout_t layout = viewport_configs[config_idx][current_player->meta.id];
 
         // --- N64 HARDWARE SCISSOR WINDOW GATE ---
         rdpq_set_scissor(layout.screen_x, layout.screen_y, layout.screen_x + layout.width, layout.screen_y + layout.height);
 
-        // Draw Map Tiles using stabilized tile space constraints
-        draw_map_tiles(&state->level, &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
+         rdpq_set_mode_standard(); 
 
-        debug_draw_projectiles_hitbox(&cameras[i], layout.screen_x, layout.screen_y);
+        // --- ACTIVE PLAYER RENDERING LOOP PATH ---
+        // Draw Map Tiles using stabilized tile space constraints
+        draw_map_tiles(&state->level, camera, layout.screen_x, layout.screen_y, layout.width, layout.height);
+
+        debug_draw_projectiles_hitbox(camera, layout.screen_x, layout.screen_y);
 
         // =========================================================================
         // --- RENDER PLAYERS ---
-        // =========================================================================
-        for (int p = 0; p < MAX_PLAYERS; p++) {
+        // =========================================================================        
+        for (int p = 0; p < player_count; p++) {
+            character *player = get_player_at(p);
+            
             // Draw the player's visual sprite
-            draw_single_character(&state->players[p], &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
+            draw_single_character(player, camera, layout.screen_x, layout.screen_y, layout.width, layout.height, p);
             
             // Draw the player's matching physical hitbox (Bright Green)
-            debug_draw_character_hitbox(&state->players[p], &cameras[i], layout.screen_x, layout.screen_y, 0x00FF00FF);
+            debug_draw_character_hitbox(player, camera, layout.screen_x, layout.screen_y, 0x00FF00FF);
         }
 
         // =========================================================================
         // --- RENDER AI MONSTERS ---
         // =========================================================================
         int enemy_count = get_enemy_count();
-
         for (int e = 0; e < enemy_count; e++) {
-            // Draw the enemy's visual sprite
             character *enemy = get_enemy_at(e);
-            draw_single_character(enemy, &cameras[i], layout.screen_x, layout.screen_y, layout.width, layout.height);
+            if (enemy == NULL) continue;
+
+            // Draw the enemy's visual sprite
+            draw_single_character(enemy, camera, layout.screen_x, layout.screen_y, layout.width, layout.height, e);
             
-            // Draw the enemy's matching physical hitbox (Bright Red for clear visibility)
-            debug_draw_character_hitbox(enemy, &cameras[i], layout.screen_x, layout.screen_y, 0xFF0000FF);
+            // Draw the enemy's matching physical hitbox (Bright Red)
+            debug_draw_character_hitbox(enemy, camera, layout.screen_x, layout.screen_y, 0xFF0000FF);
         }
     }
 
@@ -196,7 +216,9 @@ void draw_dynamic_split_screen(const game_state_t *state) {
     rdpq_mode_alphacompare(1);
     draw_hud(state);
 
-    debug_render_character_telemetry(&state->players[0], 16.0f, 20.0f);
+    if (active_player != NULL){
+        debug_render_character_telemetry(active_player, 16.0f, 20.0f);
+    }
 }
 
 void debug_render_character_telemetry(const character *c, float x, float y) {
@@ -233,7 +255,7 @@ void debug_render_character_telemetry(const character *c, float x, float y) {
 }
 
 void debug_draw_character_hitbox(const character *chr, const camera_t *active_cam, int off_x, int off_y, uint32_t color_rgba) {
-    if (!chr || !(chr->meta.state & ACTIVE)) return;
+    if (!chr) return;
 
     // 1. Calculate the exact screen space position using the same floored camera math
     int cam_x_floor = (int)floorf(active_cam->x);
@@ -337,9 +359,9 @@ void debug_draw_projectiles_hitbox(const camera_t *active_cam, int off_x, int of
     }
 }
 
-void draw_single_character(const character *chr, const camera_t *active_cam, int off_x, int off_y, int view_w, int view_h) {
-    if (!chr || !(chr->meta.state & ACTIVE)) return;
-
+void draw_single_character(const character *chr, const camera_t *active_cam, int off_x, int off_y, int view_w, int view_h, int character_index) {
+    if (!chr) return;
+        
     // =========================================================================
     // --- MULTI-VIEWPORT INDEPENDENT INVINCIBILITY FLICKER ---
     // =========================================================================
@@ -490,18 +512,34 @@ void draw_hud(const game_state_t *state) {
     // 2. Prepare standard mode for text blitting
     rdpq_set_mode_standard();
 
-    // =========================================================================
-    // A. LEFT SIDE: Players 1 & 2 (Anchored before center text blocks)
-    // =========================================================================
-    int left_offset = 8;
-    for (int i = 0; i < 2; i++) {
-        if (!(state->players[i].meta.state & ACTIVE)) continue;
+    int player_count = get_player_count();
+    for(int i = 0; i < player_count; i++) {
+        character *player = get_player_at(i);
 
-        char player_string[16]; 
-        sprintf(player_string, "P%d:%d", i + 1, state->players[i].meta.health);
+        if (player->meta.id <= 1) {
+            int left_offset = 8;
+    
+            if (player->meta.id == 1) {
+                left_offset += 45; // P1 at 8px, P2 at 53px max
+            }
 
-        rdpq_text_printf(NULL, 1, left_offset, 14, player_string);
-        left_offset += 45; // P1 at 8px, P2 at 53px max
+            char player_string[16]; 
+            sprintf(player_string, "P%d:%d", player->meta.id + 1, player->meta.health);
+
+            rdpq_text_printf(NULL, 1, left_offset, 14, player_string);
+        } 
+        else if (player->meta.id > 1) 
+        {
+            int right_offset = 224; 
+            if (player->meta.id == 3) {
+                right_offset += 45; // P3 at 224px, P4 at 269px
+            }
+
+            char player_string[16]; 
+            sprintf(player_string, "P%d:%d", player->meta.id + 1, player->meta.health);
+
+            rdpq_text_printf(NULL, 1, right_offset, 14, player_string);
+        }
     }
 
     // =========================================================================
@@ -511,21 +549,9 @@ void draw_hud(const game_state_t *state) {
     int time_int = (int)state->level_timer;
     if (time_int < 0) time_int = 0;
 
-    sprintf(center_string, "FOES:%02d | %03d", state->total_enemies_left, time_int);
+    int num_enemies = get_enemy_count();
+
+    sprintf(center_string, "FOES:%02d | %03d", num_enemies, time_int);
     // Adjusted from 140 down to 105 to center perfectly inside the safe gap channel
     rdpq_text_printf(NULL, 1, 105, 14, center_string);
-
-    // =========================================================================
-    // C. RIGHT SIDE: Players 3 & 4 (Anchored safely past center text channel)
-    // =========================================================================
-    int right_offset = 224; 
-    for (int i = 2; i < MAX_PLAYERS; i++) {
-        if (!(state->players[i].meta.state & ACTIVE)) continue;
-
-        char player_string[16]; 
-        sprintf(player_string, "P%d:%d", i + 1, state->players[i].meta.health);
-
-        rdpq_text_printf(NULL, 1, right_offset, 14, player_string);
-        right_offset += 45; // P3 at 224px, P4 at 269px
-    }
 }

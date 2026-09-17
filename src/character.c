@@ -1,6 +1,8 @@
 #include "character.h"
 
 extern const animation_profile_t character_animation_profiles[CHAR_TYPE_MAX];
+static enemy_registry_t g_enemies = { NULL, 0, 0 };
+static player_registry_t g_players = { NULL, 0, 0 };
 
 float physics_constants[NUMBER_OF_CHARACTER_TYPES][9]= {
     // Column Guide:
@@ -141,8 +143,8 @@ void character_init(character *character, character_type type, bool is_enemy, in
     character->physics.state = PHYSICS_NONE;
 }
 
-void character_update(character *self, character *players, input_state *input, uint8_t *map_data, float dt) {
-    if (!self || !input || !(self->meta.state & ACTIVE)) return;
+void character_update(character *self, input_state *input, uint8_t *map_data, float dt) {
+    if (!self || !input) return;
 
     bool was_supported_by_player = self->meta.state & SUPPORTED_BY_PLAYER;
     self->meta.state &= ~SUPPORTED_BY_PLAYER;
@@ -150,7 +152,7 @@ void character_update(character *self, character *players, input_state *input, u
     apply_friction(self, input, dt);
     handle_move_left(self, input, dt);
     handle_move_right(self, input, dt);
-    handle_jump(self, players, input); 
+    handle_jump(self, input); 
     handle_attack(self, input);    
     apply_gravity(self, dt);
     
@@ -163,9 +165,11 @@ void character_update(character *self, character *players, input_state *input, u
     // Carry teammate momentum across the X axis BEFORE testing wall limits
     if (was_supported_by_player) {
         // Find the player we were standing on last frame to inherit velocity safely
-        for (int i = 0; i < MAX_PLAYERS; i++) {
-            character *other = &players[i];
-            if (other != self && (other->meta.state & ACTIVE)) {
+        int player_count = get_player_count();
+
+        for (int i = 0; i < player_count; i++) {
+            character *other = get_player_at(i);
+            if (other != self) {
                 // Check if we are still safely aligned vertically above them
                 if (self->x < other->x + (float)other->meta.width &&
                     self->x + (float)self->meta.width > other->x) {
@@ -193,7 +197,7 @@ void character_update(character *self, character *players, input_state *input, u
     // STEP 3: RESOLVE INTER-CHARACTER RESOLUTION
     // =========================================================================
     // Modified check_character_collisions must NO LONGER inject "self->x += other->physics.vx * dt;"
-    check_character_collisions(self, players, dt); 
+    check_character_collisions(self, dt); 
 
     // =========================================================================
     // STEP 4: CLEAN UP COYOTE STATE
@@ -320,7 +324,7 @@ void handle_move_right(character *character, input_state *input, float dt)
     }
 }
 
-void handle_jump(character *self, character *players, input_state *input)
+void handle_jump(character *self, input_state *input)
 {
     if (input->active_actions & ACTION_JUMP)
     {
@@ -332,13 +336,12 @@ void handle_jump(character *self, character *players, input_state *input)
             self->physics.state |= JUMPING;
             self->meta.coyote_frames = 0;
 
-            // --- MOMENTUM TRANSFER ---
-            if (self->meta.state & SUPPORTED_BY_PLAYER && players) {
-                for (int i = 0; i < MAX_PLAYERS; i++) {
-                    character *other = &players[i];
-                    if (other == self || !(other->meta.state & ACTIVE)) continue;
+            if (!self->meta.is_enemy && self->meta.state & SUPPORTED_BY_PLAYER) {
+                int player_count = get_player_count();
+                for (int i = 0; i < player_count; i++) {
+                    character *other = get_player_at(i);
+                    if (other == self) continue;
 
-                    // FIXED: Dynamic size comparisons for stacked calculations
                     if (self->x < other->x + (float)other->meta.width &&
                         self->x + (float)self->meta.width > other->x &&
                         fabsf((self->y + (float)self->meta.height) - other->y) < 2.0f) {
@@ -437,15 +440,17 @@ void check_grounded(character *character, uint8_t *map_data)
     }
 }
 
-void check_character_collisions(character *self, character *players, float dt) {
-    if (!self || !players) return;
+void check_character_collisions(character *self, float dt) {
+    if (!self || self->meta.is_enemy) return;
 
     // A tiny padding value to protect against floating point inaccuracy
     const float EPSILON = 0.05f;
 
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-        character *other = &players[i];
-        if (other == self || !(other->meta.state & ACTIVE)) continue;
+    int player_count = get_player_count();
+
+    for (int i = 0; i < player_count; i++) {
+        character *other = get_player_at(i);
+        if (other == self) continue;
 
         // FIXED: Changed boundaries to inclusive (<= and >=) with a tiny EPSILON buffer 
         // to ensure touching/overlapping borders capture the collision state correctly
@@ -492,19 +497,100 @@ void check_character_collisions(character *self, character *players, float dt) {
     }
 }
 
-character * find_furthest_active_player(character *players, const character *self) {
-    character *furthest_active_player = NULL;
-    
-    for(int i = 0; i < MAX_PLAYERS; i++) {
-        if (!(players[i].meta.state & ACTIVE)) continue;
-        
-        // FIXED: Do not let the player who is currently spawning track themselves!
-        if (&players[i] == self) continue;
+int get_enemy_count(void) {
+    return g_enemies.count;
+}
 
-        if (!furthest_active_player || furthest_active_player->x < players[i].x) {
-            furthest_active_player = &players[i];
-        }
+character* get_enemy_at(int index) {
+    if (index < 0 || index >= g_enemies.count) return NULL;
+    return &g_enemies.data[index];
+}
+
+void init_enemy_registry(int initial_capacity) {
+    g_enemies.capacity = initial_capacity;
+    g_enemies.count = 0;
+    g_enemies.data = (character *)malloc(initial_capacity * sizeof(character));
+}
+
+// Take a pointer. Use 'const' because we are only reading the data, not changing it.
+bool spawn_enemy(const character *new_enemy) {    
+    if (g_enemies.count >= g_enemies.capacity) {
+        int next_capacity = (g_enemies.capacity == 0) ? 16 : g_enemies.capacity * 2;
+        
+        // Safe realloc check
+        character *temp = (character *)realloc(g_enemies.data, next_capacity * sizeof(character));
+        if (temp == NULL) return false; // Out of memory! Safe abort.
+
+        g_enemies.data = temp;
+        g_enemies.capacity = next_capacity;
     }
 
-    return furthest_active_player;
+    // Dereference the pointer (*) to copy the structural contents into the array
+    g_enemies.data[g_enemies.count] = *new_enemy; 
+    g_enemies.count++;
+    
+    return true; // Success
+}
+
+void destroy_enemy(int index) {
+    if (index < 0 || index >= g_enemies.count) return;
+
+    // Fast Unordered Deletion: 
+    // Swap the dead element with the absolute last element in the array, then decrement count.
+    g_enemies.data[index] = g_enemies.data[g_enemies.count - 1];
+    g_enemies.count--;
+}
+
+void cleanup_enemy_registry(void) {
+    if (g_enemies.data) {
+        free(g_enemies.data);
+        g_enemies.data = NULL;
+    }
+    g_enemies.count = 0;
+    g_enemies.capacity = 0;
+}
+
+int get_player_count(void) {
+    return g_players.count;
+}
+
+character* get_player_at(int index) {
+    if (index < 0 || index >= g_players.count) return NULL;
+    return &g_players.data[index];
+}
+
+void init_player_registry(int initial_capacity) {
+    g_players.capacity = initial_capacity;
+    g_players.count = 0;
+    g_players.data = (character *)malloc(initial_capacity * sizeof(character));
+}
+
+// Take a pointer. Use 'const' because we are only reading the data, not changing it.
+bool spawn_player(const character *new_player) {
+    if (g_players.count >= g_players.capacity)
+        return false;
+
+    // Dereference the pointer (*) to copy the structural contents into the array
+    g_players.data[g_players.count] = *new_player; 
+    g_players.count++;
+    
+    return true; // Success
+}
+
+void destroy_player(int index) {
+    if (index < 0 || index >= g_players.count) return;
+
+    // Fast Unordered Deletion: 
+    // Swap the dead element with the absolute last element in the array, then decrement count.
+    g_players.data[index] = g_players.data[g_players.count - 1];
+    g_players.count--;
+}
+
+void cleanup_player_registry(void) {
+    if (g_players.data) {
+        free(g_players.data);
+        g_players.data = NULL;
+    }
+    g_players.count = 0;
+    g_players.capacity = 0;
 }

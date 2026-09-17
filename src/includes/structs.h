@@ -84,21 +84,10 @@ typedef struct {
 #pragma endregion
 #pragma region LEVEL_STRUCTS
 typedef struct {
-    character *data; // Pointer to the dynamic array buffer
-    int count;          // Current number of active projectiles on screen
-    int capacity;       // Maximum slots currently allocated
-} enemy_registry_t;
-
-typedef struct {
-    uint8_t map_data[TOTAL_TILES];
-    
+    uint8_t map_data[TOTAL_TILES];    
     // Initial spawning coordinates for the players
     float spawn_x;
     float spawn_y;
-    
-    // You can easily add more level metadata here later:
-    // int music_id;
-    int number_of_enemies;
 } level_t;
 #pragma endregion
 #pragma region PROJECTILE_STRUCTS
@@ -155,11 +144,10 @@ typedef struct {
 typedef struct {
     int frame;
     input_state input[MAX_PLAYERS];
-    character players[MAX_PLAYERS];
     level_t level; 
     int level_index; 
     float level_timer;
-    int total_enemies_left;
+    int joined_players;
     match_state_t match_state; 
 } game_state_t;
 
@@ -183,5 +171,24 @@ typedef struct {
     int hitbox_end_frame;   // The frame the hitbox disappears
     hitbox_config_t hitbox; 
 } anim_config_t;
+
+typedef struct {
+    character *data; // Pointer to the dynamic array buffer
+    int count;          // Current number of active projectiles on screen
+    int capacity;       // Maximum slots currently allocated
+} enemy_registry_t;
+
+typedef struct {
+    character *data; // Pointer to the dynamic array buffer
+    int count;          // Current number of active projectiles on screen
+    int capacity;       // Maximum slots currently allocated
+} player_registry_t;
+
+typedef struct {
+    camera_t *data;  // Pointer to the dynamic array buffer
+    int count;       // Current number of active projectiles on screen
+    int capacity;    // Maximum slots currently allocated
+} camera_registry_t;
+
 #pragma endregion
 #endif // STRUCTS_H

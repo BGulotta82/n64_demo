@@ -1,8 +1,6 @@
 #include "engine.h"
 #include "renderer.h"
 
-extern camera_t cameras[MAX_VIEWPORTS];
-
 float calculate_delta_time(unsigned long long *last_ticks);
 
 int main(void) {
@@ -14,7 +12,7 @@ int main(void) {
     engine_init(&state);    
 
     unsigned long long last_ticks = timer_ticks();
-
+   
     while (1) {
         // 1. SAFELY Lock the backbuffer. 
         // If the RDP is completely busy or the TV isn't ready, this returns NULL
@@ -40,37 +38,30 @@ int main(void) {
         // =========================================================================
         
         // Count how many players are currently alive in the match
-        int active_count = 0;
-        for (int i = 0; i < MAX_PLAYERS; i++) {
-            if (state.players[i].meta.state & ACTIVE) active_count++;
-        }
+        int player_count = get_player_count(); 
+        int joined_players = state.joined_players; 
+        
+        int config_idx = joined_players - 1; 
 
-        if (active_count > 0) {
-            int config_idx = active_count - 1; // Map 1-4 players to layout config rows 0-3
-            int current_viewport_slot = 0;
+        for (int i = 0; i < player_count; i++) {
+            character *player = get_player_at(i);
+            camera_t *camera = get_camera_at(player->meta.id);
 
-            for (int i = 0; i < MAX_PLAYERS; i++) {
-                // If a player slot is inactive, skip it completely!
-                if (!(state.players[i].meta.state & ACTIVE)) continue;
-
-                // Look up what screen dimensions this specific quadrant/split should look like
-                viewport_layout_t layout = viewport_configs[config_idx][current_viewport_slot];
-                
-                // Track this player's camera completely independently of the other slots!
-                camera_update_split(
-                    &cameras[i],                // Pass this specific player index camera instance
-                    state.players[i].x,     // Target player exact position vectors
-                    state.players[i].y,
-                    (float)state.players[i].meta.width, 
-                    (float)state.players[i].meta.height,
-                    (float)layout.width,               // Pass dynamic viewport screen constraints
-                    (float)layout.height, 
-                    state.players[i].physics.facing_direction,
-                    dt
-                );
-
-                current_viewport_slot++;
-            }
+            // Look up what screen dimensions this specific quadrant/split should look like
+            viewport_layout_t layout = viewport_configs[config_idx][player->meta.id];
+            
+            // Track this player's camera completely independently of the other slots!
+            camera_update_split(
+                camera, // Pass this specific player id camera instance
+                player->x,     // Target player exact position vectors
+                player->y,
+                (float)player->meta.width, 
+                (float)player->meta.height,
+                (float)layout.width,               // Pass dynamic viewport screen constraints
+                (float)layout.height, 
+                player->physics.facing_direction,
+                dt
+            );
         }
 
         // 6. Draw your scene passing down the valid locked pointer

@@ -32,11 +32,9 @@ typedef enum {
 
 typedef enum {
     CHARACTER_NONE        =  0,
-    ACTIVE      =  1 << 0, 
-    SPAWNED     = 1 << 1,
-    SUPPORTED_BY_PLAYER = 1 << 2,
-    ATTACKING             = 1 << 3,  // 8  
-    WANTS_TO_ATTACK       = 1 << 4 // 16
+    SUPPORTED_BY_PLAYER = 1 << 0,
+    ATTACKING             = 1 << 1,  // 8  
+    WANTS_TO_ATTACK       = 1 << 2 // 16
 } character_state;
 
 typedef enum {

@@ -1,6 +1,6 @@
 #include "camera.h"
 
-camera_t cameras[MAX_VIEWPORTS]; 
+static camera_registry_t g_cameras = { NULL, 0, 0 };
 
 // Dedicated layout configurations supporting 1, 2, or 4-way screen grids
 viewport_layout_t viewport_configs[4][4] = {
@@ -78,4 +78,49 @@ void camera_update_split(camera_t *cam, float p_x, float p_y, float p_w, float p
 
     cam->x += error_x * tracking_speed * dt;
     cam->y += error_y * tracking_speed * dt;
+}
+
+int get_camera_count(void) {
+    return g_cameras.count;
+}
+
+camera_t* get_camera_at(int index) {
+    if (index < 0 || index >= g_cameras.count) return NULL;
+    return &g_cameras.data[index];
+}
+
+void init_camera_registry(int initial_capacity) {
+    g_cameras.capacity = initial_capacity;
+    g_cameras.count = 0;
+    g_cameras.data = (camera_t *)malloc(initial_capacity * sizeof(camera_t));
+}
+
+// Take a pointer. Use 'const' because we are only reading the data, not changing it.
+bool spawn_camera(const camera_t *new_camera) {
+    if (g_cameras.count >= g_cameras.capacity)
+        return false;
+
+    // Dereference the pointer (*) to copy the structural contents into the array
+    g_cameras.data[g_cameras.count] = *new_camera; 
+    g_cameras.count++;
+    
+    return true; // Success
+}
+
+void destroy_camera(int index) {
+    if (index < 0 || index >= g_cameras.count) return;
+
+    // Fast Unordered Deletion: 
+    // Swap the dead element with the absolute last element in the array, then decrement count.
+    g_cameras.data[index] = g_cameras.data[g_cameras.count - 1];
+    g_cameras.count--;
+}
+
+void cleanup_camera_registry(void) {
+    if (g_cameras.data) {
+        free(g_cameras.data);
+        g_cameras.data = NULL;
+    }
+    g_cameras.count = 0;
+    g_cameras.capacity = 0;
 }

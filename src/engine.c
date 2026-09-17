@@ -1,7 +1,6 @@
 #include "engine.h"
 
-extern camera_t cameras[MAX_VIEWPORTS];
-extern const int g_enemies_per_spawn_point[MAX_PLAYERS];
+const int g_enemies_per_spawn_point[MAX_PLAYERS] = { 3,6,8,10 };
 
 // Define the static constant table mapping parameters directly to the character type index
 const animation_profile_t character_animation_profiles[CHAR_TYPE_MAX] = {
@@ -116,6 +115,7 @@ static const stage_config_t level_playlist[MAX_LEVELS] = {
 
 void engine_init(game_state_t *state) {
     memset(state, 0, sizeof(*state));
+    init_player_registry(MAX_PLAYERS);
 
     state->match_state = STATE_WAITING_TO_START;
 
@@ -142,56 +142,51 @@ void engine_update(game_state_t *state, float dt) {
             }    
 
             load_stage_by_index(state, next_level_index);
+            add_new_player(0, state);
+            state->joined_players++;
             state->match_state = STATE_PLAYING;
         }
-
         return;
     }
 
-    int active_players = 0;
-    int new_players = 0;
+    // do we need to check for new players spawning in?
+    int player_count = get_player_count();
+    int new_player_count = 0;
+    if (player_count < MAX_PLAYERS) {
+        for (int i = player_count; i < MAX_PLAYERS; i++) {
+            input_state *player_input = &state->input[i];
+            input_update(player_input, i);     
 
-    character *spawned_player = NULL;
-
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-
-        input_update(&state->input[i], i);
-
-        bool player_active = (state->players[i].meta.state & ACTIVE);
-
-        if (!player_active) {
-            check_new_player_spawn(&state->players[i], state->players, &state->level, &state->input[i], i);
-            if (state->players[i].meta.state & SPAWNED){
-                spawned_player = &state->players[i]; 
-                new_players++;
-            } 
+            // did a new player hit start?
+            if (player_input->active_actions & ACTION_START) {
+                add_new_player(i, state);
+                state->joined_players++;
+                new_player_count++;
+            }         
         }
 
-        if (!(state->players[i].meta.state & ACTIVE)) {
-            continue;
+        if (new_player_count > 0) {
+            // do we need to spawn new enemies into the level?
+            int num_enemies_to_spawn = g_enemies_per_spawn_point[player_count + new_player_count - 1] - g_enemies_per_spawn_point[player_count - 1];
+            add_new_enemies(state, num_enemies_to_spawn);
+            return;
         }
-        
-        active_players++;
-     
-        character_update(&state->players[i], state->players, &state->input[i], state->level.map_data, dt);
     }
 
-    if (new_players > 0 && spawned_player->meta.id > 0) {
-        int num_enemies_to_spawn = g_enemies_per_spawn_point[active_players - 1] - g_enemies_per_spawn_point[new_players - 1];
-        spawn_new_enemies(state, num_enemies_to_spawn, spawned_player);
+    player_count = get_player_count();
+
+    for (int i = 0; i < player_count; i++) {
+        character* player = get_player_at(i);
+        input_state *player_input = &state->input[i];
+        input_update(player_input, i);     
+        character_update(player, player_input, state->level.map_data, dt);
     }
 
     // 2. Update your enemies using simulated AI inputs
     int num_enemies = get_enemy_count();
-    state->total_enemies_left = 0;
     
-    for (int i = 0; i < num_enemies; i++) {
-        
+    for (int i = 0; i < num_enemies; i++) {        
         character* enemy = get_enemy_at(i);
-
-        if (!(enemy->meta.state & ACTIVE)) continue;
-
-        state->total_enemies_left++;
 
         // Create a local, lightweight input instance on the stack for this loop iteration
         input_state simulated_input;
@@ -201,7 +196,7 @@ void engine_update(game_state_t *state, float dt) {
 
         //Run them through the exact same update system!
         //Pass the player array down so enemies can physically interact with players
-        character_update(enemy, NULL, &simulated_input, state->level.map_data, dt);
+        character_update(enemy, &simulated_input, state->level.map_data, dt);
     }
 
      // 2. Count down your level match timer
@@ -215,140 +210,144 @@ void engine_update(game_state_t *state, float dt) {
     // This evaluates modifications over clean, locked positions
     check_pve_combat(state, dt);
 
-    if (state->match_state == STATE_PLAYING) {
-        
+    player_count = get_player_count();
+    int enemy_count = get_enemy_count();
+
+    if (state->match_state == STATE_PLAYING) {          
         // --- TIMEOUT PRIORITY GATE (LIFTED OUTSIDE OF SPAWN CHECKS) ---
         // If the clock drops to zero or below, freeze the clock and force a hard DEFEAT state immediately.
-        if (state->level_timer <= 0.001f) {
+        if (state->level_timer <= 0.001f || player_count == 0) {
             state->level_timer = 0.0f; // Clamp clock visual for your draw_hud string
             state->match_state = STATE_GAME_OVER;
         }        
-        // --- SURVIVOR OR SPONTANEOUS DROP-IN CONDITION TRACKING ---
-        // Only evaluate standard field tracking flags if a player isn't in mid-spawn transition
-        else if (new_players == 0) {
-            // Trigger a victory if all enemies are dead and active players are present on screen
-            if (state->total_enemies_left == 0 && active_players > 0) {
-                state->match_state = STATE_LEVEL_CLEARED;
-            }
-            // Trigger a defeat if all drop-in players have completely run out of lives and died
-            else if (active_players == 0) {
-                state->match_state = STATE_GAME_OVER;
-            }
-        }
-        // Fallback: If players died while someone was spawning, but the timer is safe, 
-        // the drop-in player preserves the match lifecycle cleanly.
-        else if (active_players == 0 && new_players > 0) {
-            // Keep state playing so the new player drops down from the sky smoothly!
+        // Trigger a victory if all enemies are dead and active players are present on screen
+        if (enemy_count == 0 && player_count > 0) {
+            state->match_state = STATE_LEVEL_CLEARED;
         }
     }
 
-        // =========================================================================
+    // =========================================================================
     // 4. --- UPDATE ANIMATION STATES (PLACE HERE) ---
     // =========================================================================
     // At this exact point, all movement, collisions, gravity adjustments, and 
     // combat knockbacks have locked down. We can now safely read the final positions.
     
     // Process all active players
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-        if (state->players[i].meta.state & ACTIVE) {
-            update_character_animation_state(&state->players[i]);
-        }
+    for (int i = 0; i < player_count; i++) {
+        character *player = get_player_at(i);
+        update_character_animation_state(player);
     }
 
     // Process all active enemies
-    int enemy_count = get_enemy_count();
     for (int i = 0; i < enemy_count; i++) {
         character* enemy = get_enemy_at(i);
-
-        if (enemy->meta.state & ACTIVE) {
-            update_character_animation_state(enemy);
-        }
+        update_character_animation_state(enemy);
     }
+    
     state->frame++;
 }
 
-void spawn_new_enemies(game_state_t *state, int num_enemies_to_spawn, character *self)
+void add_new_player(int player_id, game_state_t *state)
+{
+    character new_player = {0};
+    character_type type = rand() % 4;
+    character_init(&new_player, type, false, player_id);
+    determine_new_player_coordinates(&new_player, &state->level);
+    spawn_player(&new_player);
+    
+    for(int i = 0; i <= player_id; i++) {
+        camera_t *camera = get_camera_at(i);
+        if (camera != NULL && i == player_id){
+            camera_init(
+                        camera,                  // Pass the address of this specific camera element
+                        (float)(MAP_WIDTH * TILE_SIZE),        // World map bounds metrics
+                        (float)(MAP_HEIGHT * TILE_SIZE), 
+                        (float)SCREEN_WIDTH,                 // Full screen window dimensions as baseline seed
+                        (float)SCREEN_HEIGHT, 
+                        new_player.x,         // Safe spawn origin values
+                        new_player.y
+                    );            
+            break;
+        }
+
+        if (camera == NULL) {
+            camera_t new_camera = {0};
+            camera_init(
+                        &new_camera,                  // Pass the address of this specific camera element
+                        (float)(MAP_WIDTH * TILE_SIZE),        // World map bounds metrics
+                        (float)(MAP_HEIGHT * TILE_SIZE), 
+                        (float)SCREEN_WIDTH,                 // Full screen window dimensions as baseline seed
+                        (float)SCREEN_HEIGHT, 
+                        i == player_id ? new_player.x : state->level.spawn_x,         // Safe spawn origin values
+                        i == player_id ? new_player.y : state->level.spawn_y
+                    );            
+            spawn_camera(&new_camera);
+        }
+    }
+}
+
+void add_new_enemies(game_state_t *state, int num_enemies_to_spawn)
 {
     // find furthest active player in the map
-    character *furthest_active_player = find_furthest_active_player(state->players, self);
-    camera_t player_camera = cameras[furthest_active_player->meta.id];
-    int tile_start_idx = (int)((player_camera.x + player_camera.width + TILE_SIZE) / TILE_SIZE);
+    character *furthest_active_player = find_furthest_active_player();
+    camera_t *camera = get_camera_at(furthest_active_player->meta.id);
+
+    int tile_start_idx = (int)((camera->x + camera->width + TILE_SIZE) / TILE_SIZE);
 
     for (int y = 0; y < MAP_HEIGHT; y++) {
         for (int x = tile_start_idx; x < MAP_WIDTH; x++) {
             uint8_t tile_id =  get_tile_at(state->level.map_data, x, y);
             if (tile_id != ENEMY_SPAWN) continue;
 
-            spawn_enemies(num_enemies_to_spawn, &state->level, x, y);
+            spawn_enemies(num_enemies_to_spawn, x, y);
         }
     }
 }
 
-void check_new_player_spawn(character *self, character *players, level_t *level, input_state *input, int id)
-{
-    if (input->active_actions & ACTION_START && 
-      !(self->meta.state & ACTIVE) && 
-      !(self->meta.state & SPAWNED)) {
-        character_type type = rand() % 4;
-        character_init(self, type, false, id);
-        self->meta.state |= ACTIVE;
-        self->meta.state |= SPAWNED;
-        spawn_new_player(self, players, level);
-    }
-}
+void determine_new_player_coordinates(character *new_player, level_t *level)
+{   
+    character *furthest = find_furthest_active_player();
 
-void spawn_new_player(character *self, character *players, level_t *level)
-{
-    if (self == &players[0])
-    {
-        self->x = level->spawn_x;
-        self->y = level->spawn_y;
-    } 
-    else 
-    {
-        character *furthest = find_furthest_active_player(players, self);
-
-        float target_x = level->spawn_x;
-        float target_y = level->spawn_y;
-        float desired_offset = 20.0f;
+    float target_x = level->spawn_x;
+    float target_y = level->spawn_y;
+    float desired_offset = 20.0f;
+    
+    if (furthest != NULL) {
+        bool moving_right = furthest->physics.state & MOVING_RIGHT;
+        desired_offset = moving_right ? -20.0f : 20.0f;
         
-        if (furthest != NULL) {
-            bool moving_right = furthest->physics.state & MOVING_RIGHT;
-            desired_offset = moving_right ? -20.0f : 20.0f;
-            
-            target_x = furthest->x + desired_offset;
-            target_y = furthest->y;
-        }
+        target_x = furthest->x + desired_offset;
+        target_y = furthest->y;
+    }
 
-        // 1. CLAMP FIRST: Guarantee negative bounds are completely erased
-        if (target_x < 0.0f) {
-            target_x = 0.0f;
-        }
-        if (target_x + (float)self->meta.width > (float)(MAP_WIDTH * TILE_SIZE)) {
-            target_x = (float)(MAP_WIDTH * TILE_SIZE) - (float)self->meta.width;
-        }
+    // 1. CLAMP FIRST: Guarantee negative bounds are completely erased
+    if (target_x < 0.0f) {
+        target_x = 0.0f;
+    }
+    if (target_x + (float)new_player->meta.width > (float)(MAP_WIDTH * TILE_SIZE)) {
+        target_x = (float)(MAP_WIDTH * TILE_SIZE) - (float)new_player->meta.width;
+    }
 
-        // 2. CHECK SOLID TILES SECOND
-        int test_tile_x = (int)(target_x + ((float)self->meta.width / 2.0f)) / TILE_SIZE;
-        int test_tile_y = (int)(target_y + ((float)self->meta.height / 2.0f)) / TILE_SIZE;
-        uint8_t target_tile_block = get_tile_at(level->map_data, test_tile_x, test_tile_y);
+    // 2. CHECK SOLID TILES SECOND
+    int test_tile_x = (int)(target_x + ((float)new_player->meta.width / 2.0f)) / TILE_SIZE;
+    int test_tile_y = (int)(target_y + ((float)new_player->meta.height / 2.0f)) / TILE_SIZE;
+    uint8_t target_tile_block = get_tile_at(level->map_data, test_tile_x, test_tile_y);
 
-        if (target_tile_block == 2 && furthest != NULL) {
-            // Stack perfectly on top of friend if clamped space is a solid wall
-            self->x = furthest->x;
-            self->y = furthest->y;
-        } 
-        else {
-            // Safe open air position assignment
-            self->x = target_x;
-            self->y = target_y;
-        }
+    if (target_tile_block == 2 && furthest != NULL) {
+        // Stack perfectly on top of friend if clamped space is a solid wall
+        new_player->x = furthest->x;
+        new_player->y = furthest->y;
+    } 
+    else {
+        // Safe open air position assignment
+        new_player->x = target_x;
+        new_player->y = target_y;
     }
 }
 
 void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state *dummy_input, float dt) {
     dummy_input->active_actions = 0;
-    if (!(enemy->meta.state & ACTIVE) || !enemy->meta.is_enemy) return;
+    if (!enemy->meta.is_enemy) return;
 
     // =========================================================================
     // 1. FIXED MULTI-VIEWPORT CHECK (Decoupled from live player life status)
@@ -358,14 +357,19 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
 
     // ALWAYS scan through all physical cameras up to MAX_PLAYERS.
     // Do NOT stop scanning a camera viewport just because its player died!
-    for (int v = 0; v < MAX_PLAYERS; v++) {
+    int player_count = get_player_count();
+
+    for (int v = 0; v < player_count; v++) {
         // If your camera system has a structural flag for active screens (e.g. split screen active)
         // check it here. Otherwise, let it read the persistent layout data.
         
-        float cam_left   = (float)cameras[v].x;
-        float cam_right  = (float)(cameras[v].x + cameras[v].width);
-        float cam_top    = (float)cameras[v].y;
-        float cam_bottom = (float)(cameras[v].y + cameras[v].height);
+        character *player = get_player_at(v);
+        camera_t *camera = get_camera_at(player->meta.id);
+
+        float cam_left   = (float)camera->x;
+        float cam_right  = (float)(camera->x + camera->width);
+        float cam_top    = (float)camera->y;
+        float cam_bottom = (float)(camera->y + camera->height);
 
         // Check if the enemy overlaps this specific viewport window boundary layout
         if (enemy->x >= (cam_left - buffer)  && enemy->x <= (cam_right + buffer) &&
@@ -377,17 +381,13 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
 
     // If completely hidden across all active layout windows, drop simulation tasks
     if (!visible_in_any_viewport) {
-        enemy->meta.state &= ~SPAWNED; 
         return; 
     }
 
     // =========================================================================
     // 2. TIMING LAZY INITIALIZATION: Lock home row upon hitting screen view
     // =========================================================================
-    if (!(enemy->meta.state & SPAWNED)) {
-        enemy->meta.ai_home_row = (int)floorf((enemy->y + (float)enemy->meta.height + 4.0f) / (float)TILE_SIZE);
-        enemy->meta.state |= SPAWNED; 
-    }
+    enemy->meta.ai_home_row = (int)floorf((enemy->y + (float)enemy->meta.height + 4.0f) / (float)TILE_SIZE);
 
     // =========================================================================
     // 3. --- SELF-HEALING HOME ROW SAFETY TRACKER ---
@@ -410,9 +410,8 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
     character *closest_player = NULL;
     float min_distance = 999999.0f;
 
-    for (int p = 0; p < MAX_PLAYERS; p++) {
-        const character *player = &state->players[p];
-        if (!(player->meta.state & ACTIVE)) continue;
+    for (int p = 0; p < player_count; p++) {
+        const character *player = get_player_at(p);
 
         int player_current_row = (int)floorf((player->y + (float)player->meta.height + 4.0f) / (float)TILE_SIZE);
 
@@ -519,7 +518,7 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
 
     for (int e = 0; e < enemy_count; e++) {
         const character *other = get_enemy_at(e);
-        if (other == enemy || !(other->meta.state & ACTIVE) || !(other->meta.state & SPAWNED)) continue;
+        if (other == enemy) continue;
 
         if (fabsf(other->y - enemy->y) < 16.0f) {
             float dx = other->x - enemy->x;
@@ -599,22 +598,20 @@ void check_pve_combat(game_state_t *state, float dt) {
 
 void check_melee_collisions(game_state_t *state)
 {
-    for (int p = 0; p < MAX_PLAYERS; p++)
+    int player_count = get_player_count();
+
+    for (int p = 0; p < player_count; p++)
     {
-        character *player = &state->players[p];
-        if (!(player->meta.state & ACTIVE))
-            continue;
+        character *player = get_player_at(p);
 
         rect_t attack_box;
         bool is_attacking = get_character_secondary_hitbox(player, &attack_box);
 
-        int enemy_count = get_enemy_count();
+        int num_enemies = get_enemy_count();
 
-        for (int e = 0; e < enemy_count; e++)
+        for (int e = 0; e < num_enemies; e++)
         {            
             character *enemy = get_enemy_at(e);
-            if (!(enemy->meta.state & ACTIVE))
-                continue;
 
             float e_x1 = enemy->x;
             float e_y1 = enemy->y;
@@ -635,13 +632,9 @@ void check_melee_collisions(game_state_t *state)
                         enemy->meta.health -= player->meta.damage;
                         if (enemy->meta.health <= 0)
                         {
-                            enemy->meta.health = 0;
-                            enemy->meta.state &= ~ACTIVE;
-                            enemy->meta.state &= ~SPAWNED;
                             destroy_enemy(e);
-                            enemy_count--; // The total pool shrank by one
+                            num_enemies--; // The total pool shrank by one
                             e--;       
-
                         }
                         else
                         {
@@ -669,9 +662,9 @@ void check_melee_collisions(game_state_t *state)
                     player->meta.health-= enemy->meta.damage;
                     if (player->meta.health <= 0)
                     {
-                        player->meta.health = 0;
-                        player->meta.state &= ~ACTIVE;
-                        player->meta.state &= ~SPAWNED;
+                        destroy_player(p);
+                        player_count--; // The total pool shrank by one
+                        p--;       
                         break;
                     }
 
@@ -705,11 +698,13 @@ void check_projectile_collisions(game_state_t *state)
 
         if (proj->meta.is_enemy)
         {
+            int player_count = get_player_count();
+
             // ENEMY PROJECTILE VS PLAYERS
-            for (int p = 0; p < MAX_PLAYERS; p++)
+            for (int p = 0; p < player_count; p++)
             {
-                character *player = &state->players[p];
-                if (!(player->meta.state & ACTIVE) || player->meta.invincibility_frames > 0)
+                character *player = get_player_at(p);
+                if (player->meta.invincibility_frames > 0)
                     continue;
 
                 float p_x1 = player->x;
@@ -724,9 +719,9 @@ void check_projectile_collisions(game_state_t *state)
                     player->meta.health -= proj->meta.damage;
                     if (player->meta.health <= 0)
                     {
-                        player->meta.health = 0;
-                        player->meta.state &= ~ACTIVE;
-                        player->meta.state &= ~SPAWNED;
+                        destroy_player(p);
+                        player_count--; // The total pool shrank by one
+                        p--;       
                     }
                     else
                     {
@@ -749,8 +744,6 @@ void check_projectile_collisions(game_state_t *state)
             for (int e = 0; e < num_enemies; e++)
             {                
                 character *enemy = get_enemy_at(e);
-                if (!(enemy->meta.state & ACTIVE))
-                    continue;
 
                 float e_x1 = enemy->x;
                 float e_y1 = enemy->y;
@@ -759,14 +752,15 @@ void check_projectile_collisions(game_state_t *state)
 
                 // AABB Check
                 if (proj_x1 < e_x2 && proj_x2 > e_x1 && proj_y1 < e_y2 && proj_y2 > e_y1)
-                {
+                {                    
                     int player_id = proj->meta.owner->meta.id;
+                    camera_t *camera = get_camera_at(player_id);
 
                     // 1. Get the player's world-space camera bounds
-                    float cam_left   = (float)cameras[player_id].x;
-                    float cam_right  = (float)(cameras[player_id].x + cameras[player_id].width);
-                    float cam_top    = (float)cameras[player_id].y;
-                    float cam_bottom = (float)(cameras[player_id].y + cameras[player_id].height);
+                    float cam_left   = (float)camera->x;
+                    float cam_right  = (float)(camera->x + camera->width);
+                    float cam_top    = (float)camera->y;
+                    float cam_bottom = (float)(camera->y + camera->height);
 
                     // 2. Calculate the enemy's center in world-space
                     float enemy_center_x = enemy->x + ((float)enemy->meta.width / 2.0f);
@@ -774,10 +768,9 @@ void check_projectile_collisions(game_state_t *state)
 
                     // 3. REFINED VIEWPORT BOUNDS CHECK (Pure World Space)
                     bool is_in_viewport = (enemy_center_x >= cam_left  && 
-                                        enemy_center_x <= cam_right &&
-                                        enemy_center_y >= cam_top   && 
-                                        enemy_center_y <= cam_bottom);
-
+                                           enemy_center_x <= cam_right &&
+                                           enemy_center_y >= cam_top   && 
+                                           enemy_center_y <= cam_bottom);
 
                     if (is_in_viewport)
                     {
@@ -787,9 +780,6 @@ void check_projectile_collisions(game_state_t *state)
                                 
                         if (enemy->meta.health <= 0)
                         {
-                            enemy->meta.health = 0;
-                            enemy->meta.state &= ~ACTIVE;
-                            enemy->meta.state &= ~SPAWNED;
                             destroy_enemy(e);
                             num_enemies--; // The total pool shrank by one
                             e--;       
@@ -990,51 +980,46 @@ void load_stage_by_index(game_state_t *state, int index) {
         index = 0; // Safe fallback boundary clamp
     }
     
-    bool survivor = false;
-    int num_active_players = 0;
-
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-         if(state->players[i].meta.state & ACTIVE){
-            survivor = true;
-            num_active_players++;
-         }
-    }
-    
     cleanup_enemy_registry();
+    cleanup_camera_registry();
+    init_enemy_registry(16);
+    init_camera_registry(MAX_VIEWPORTS);
 
     state->level_index = index;
     
     const char *target_file = level_playlist[index].filename;
     float target_time       = level_playlist[index].time_limit;
-    load_level_binary(target_file, &state->level, num_active_players);
-
+    load_level_binary(target_file, state);
     state->level_timer = target_time; 
-    
 
-    for (int i = 0; i < MAX_PLAYERS; i++) {
-        bool player_active = state->players[i].meta.state & ACTIVE;
+    int player_count = get_player_count();
 
-        // If we just cleared a level and this specific player survived (is active), 
-        // DO NOT kill them. Keep their active state and health intact!
-        if (previous_state == STATE_LEVEL_CLEARED && player_active) {
+    if (previous_state == STATE_LEVEL_CLEARED) 
+    { 
+        for (int i = 0; i < player_count; i++) 
+        {
+            character *player = get_player_at(i);
+
+            // If we just cleared a level and this specific player survived (is active), 
+            // DO NOT kill them. Keep their active state and health intact!
             // Stop horizontal speeds so they don't slide into the new stage uncontrollably
-            state->players[i].physics.vx = 0.0f;
-            state->players[i].physics.vy = 0.0f;
-            state->players[i].physics.state = PHYSICS_NONE;
-            state->players[i].meta.coyote_frames = 0;
-            state->players[i].meta.jump_buffer_frames = 0;
-            state->players[i].meta.invincibility_frames = 0;
-            spawn_new_player(&state->players[i], state->players, &state->level);
-        } 
-        else {
-            // If it was a Game Over, initial boot, or if the player was dead, 
-            // completely deactivate the slot so they must press START to drop back in.
-            state->players[i].meta.state &= ~ACTIVE;
-            state->players[i].meta.state &= ~SPAWNED;
+            character_type type = player->meta.type;
+            int player_id = player->meta.id;
+            character_init(player, type, false, player_id);
+            determine_new_player_coordinates(player, &state->level);
         }
-    }
 
-    if (!survivor) 
+        state->joined_players = player_count;
+    } 
+    else if (previous_state == STATE_GAME_OVER) 
+    {
+            cleanup_player_registry();
+            init_player_registry(MAX_PLAYERS);
+            state->joined_players = 0;
+            player_count = 0;
+    } 
+
+    if (player_count == 0) 
     {
         state->match_state = STATE_WAITING_TO_START;
     } 
@@ -1042,19 +1027,19 @@ void load_stage_by_index(game_state_t *state, int index) {
     {
         state->match_state = STATE_STAGE_INTRO;
     }
+}
 
-    // =========================================================================
-    // --- MULTI-VIEWPORT CAMERA ARRAY INITIALIZATION ---
-    // =========================================================================
-    for (int v = 0; v < MAX_VIEWPORTS; v++) {
-        camera_init(
-            &cameras[v],                  // Pass the address of this specific camera element
-            (float)(MAP_WIDTH * TILE_SIZE),        // World map bounds metrics
-            (float)(MAP_HEIGHT * TILE_SIZE), 
-            (float)SCREEN_WIDTH,                 // Full screen window dimensions as baseline seed
-            (float)SCREEN_HEIGHT, 
-            state->level.spawn_x,         // Safe spawn origin values
-            state->level.spawn_y
-        );
-    }    
+character* find_furthest_active_player() {
+    character *furthest_active_player = NULL;
+    
+    int player_count = get_player_count();
+
+    for(int i = 0; i < player_count; i++) {
+        character *player = get_player_at(i);
+        if (!furthest_active_player || furthest_active_player->x < player->x) {
+            furthest_active_player = player;
+        }
+    }
+
+    return furthest_active_player;
 }

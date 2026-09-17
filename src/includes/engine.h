@@ -27,5 +27,5 @@ void ai_behavior_skeleton(character *enemy, const character *target, float dista
 void ai_behavior_goomba(const character *enemy, const character *target, bool *move_left, bool *move_right);
 void update_character_animation_state(character *self);
 bool get_character_secondary_hitbox(const character *chr, rect_t *out_rect);
-character* find_furthest_active_player();
+character* find_furthest_active_player(character *self);
 #endif // ENGINE_H

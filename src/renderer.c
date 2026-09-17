@@ -100,37 +100,49 @@ void renderer_draw(surface_t *disp, const game_state_t *state) {
 
 void draw_game_state(const game_state_t *state)
 {
+    // Define the dimensions of the overlay box (260x60 pixels wide/tall)
+    const int box_w = 260;
+    const int box_h = 60;
+
+    // Dynamically calculate the centered coordinates for the rectangle box
+    int box_x1 = (SCREEN_WIDTH - box_w) / 2;
+    int box_y1 = (SCREEN_HEIGHT - box_h) / 2;
+    int box_x2 = box_x1 + box_w;
+    int box_y2 = box_y1 + box_h;
+
+    // Dynamic screen center anchors for text alignment
+    int center_x = SCREEN_WIDTH / 2;
+    int center_y = SCREEN_HEIGHT / 2;
+
     if (state->match_state == STATE_GAME_OVER) {
         rdpq_set_mode_fill(RGBA32(0x00, 0x00, 0x00, 200));
-        rdpq_fill_rectangle(30, 90, 290, 150); 
+        rdpq_fill_rectangle(box_x1, box_y1, box_x2, box_y2); 
         
         rdpq_set_mode_standard();
-        rdpq_text_printf(NULL, 1, 120, 114, "GAME OVER");
-        rdpq_text_printf(NULL, 1, 68, 134, "PRESS START TO RETRY STAGE");
+        // Text positions aligned relative to center axis
+        rdpq_text_printf(NULL, 1, center_x - 40, center_y - 6, "GAME OVER");
+        rdpq_text_printf(NULL, 1, center_x - 92, center_y + 14, "PRESS START TO RETRY STAGE");
     } 
-    else  if (state->match_state == STATE_LEVEL_CLEARED) {
+    else if (state->match_state == STATE_LEVEL_CLEARED) {
         rdpq_set_mode_fill(RGBA32(0x10, 0x40, 0x10, 200));
-        rdpq_fill_rectangle(30, 90, 290, 150);
+        rdpq_fill_rectangle(box_x1, box_y1, box_x2, box_y2);
         
         rdpq_set_mode_standard();
-        rdpq_text_printf(NULL, 1, 108, 114, "STAGE CLEARED!");
-        rdpq_text_printf(NULL, 1, 64, 134, "PRESS START FOR NEXT STAGE");
+        rdpq_text_printf(NULL, 1, center_x - 52, center_y - 6, "STAGE CLEARED!");
+        rdpq_text_printf(NULL, 1, center_x - 96, center_y + 14, "PRESS START FOR NEXT STAGE");
     } 
     else if (state->match_state == STATE_WAITING_TO_START) {
-        // Render a large dark box over the center of the viewport screen
         rdpq_set_mode_fill(RGBA32(0x00, 0x00, 0x00, 200));
-        rdpq_fill_rectangle(30, 90, 290, 150); // Elongated slightly to fit two lines
+        rdpq_fill_rectangle(box_x1, box_y1, box_x2, box_y2);
 
-        // (Blinks every 30 frames at 60 FPS (~0.5 seconds))
+        // Blinks every 30 frames at 60 FPS (~0.5 seconds)
         if (state->frame % 60 < 30)
         {
-            // Render a large dark box over the center of the viewport screen
             rdpq_set_mode_fill(RGBA32(0xFF, 0xFF, 0xFF, 200));
-            rdpq_fill_rectangle(30, 90, 290, 150); // Elongated slightly to fit two lines
+            rdpq_fill_rectangle(box_x1, box_y1, box_x2, box_y2);
 
             rdpq_set_mode_standard();
-            // Line 1: Primary Status
-            rdpq_text_printf(NULL, 1, 120, 114, "PRESS START");
+            rdpq_text_printf(NULL, 1, center_x - 40, center_y - 6, "PRESS START");
         }
     }
 }
@@ -164,6 +176,11 @@ void draw_dynamic_split_screen(const game_state_t *state) {
         rdpq_sync_pipe();           
         rdpq_set_mode_standard(); 
         rdpq_mode_alphacompare(1); 
+
+        float x_offset = 32.0f;
+        float y_offset = 32.0f;
+
+        debug_render_character_telemetry(current_player, layout.screen_x + x_offset, layout.screen_y + y_offset);
 
         // Render Players
         for (int p = 0; p < player_count; p++) {
@@ -444,9 +461,9 @@ void draw_map_tiles(const level_t *level, int cam_x_floor, int cam_y_floor, int 
 }
 
 void draw_hud(const game_state_t *state) {
-    // 1. Render the top 20px dark banner background
+    // 1. Render the top 20px dark banner background spanning the full screen width
     rdpq_set_mode_fill(RGBA32(0x00, 0x00, 0x00, 180)); 
-    rdpq_fill_rectangle(0, 0, 320, 20);
+    rdpq_fill_rectangle(0, 0, SCREEN_WIDTH, 20);
 
     // 2. Prepare standard mode for text blitting
     rdpq_set_mode_standard();
@@ -456,10 +473,11 @@ void draw_hud(const game_state_t *state) {
         character *player = get_player_at(i);
 
         if (player->meta.id <= 1) {
+            // P1 & P2: Anchored to the left side of the screen
             int left_offset = 8;
     
             if (player->meta.id == 1) {
-                left_offset += 45; // P1 at 8px, P2 at 53px max
+                left_offset += 45; // P1 at 8px, P2 at 53px
             }
 
             char player_string[16]; 
@@ -469,9 +487,10 @@ void draw_hud(const game_state_t *state) {
         } 
         else if (player->meta.id > 1) 
         {
-            int right_offset = 224; 
+            // P3 & P4: Dynamically anchored to the right edge of the screen
+            int right_offset = SCREEN_WIDTH - 96; // Equivalent to 224px when SCREEN_WIDTH is 320
             if (player->meta.id == 3) {
-                right_offset += 45; // P3 at 224px, P4 at 269px
+                right_offset += 45; // P3 at (Width - 96px), P4 at (Width - 51px)
             }
 
             char player_string[16]; 
@@ -482,7 +501,7 @@ void draw_hud(const game_state_t *state) {
     }
 
     // =========================================================================
-    // B. CENTER SCREEN: Enemy Counter & Countdown Timer (Shifted for spacing)
+    // B. CENTER SCREEN: Enemy Counter & Countdown Timer (Dynamic Center Offset)
     // =========================================================================
     char center_string[32];
     int time_int = (int)state->level_timer;
@@ -491,6 +510,9 @@ void draw_hud(const game_state_t *state) {
     int num_enemies = get_enemy_count();
 
     sprintf(center_string, "FOES:%02d | %03d", num_enemies, time_int);
-    // Adjusted from 140 down to 105 to center perfectly inside the safe gap channel
-    rdpq_text_printf(NULL, 1, 105, 14, center_string);
+    
+    // Calculates the horizontal middle of the viewport and shifts left by 
+    // the text boundary offset (55px) to keep it perfectly centered.
+    int center_x = (SCREEN_WIDTH / 2) - 55; 
+    rdpq_text_printf(NULL, 1, center_x, 14, center_string);
 }

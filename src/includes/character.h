@@ -39,6 +39,7 @@ void cleanup_enemy_registry(void);
 
 int get_player_count(void);
 character* get_player_at(int index);
+character* get_player_by_id(int id);
 void init_player_registry(int initial_capacity);
 bool spawn_player(const character *new_player);
 void destroy_player(int index);

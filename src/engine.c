@@ -161,16 +161,19 @@ void engine_update(game_state_t *state, float dt) {
     if (joined_players < MAX_PLAYERS) {
         int new_player_count = 0;
 
-        for (int i = joined_players; i <= MAX_PLAYERS-1; i++) {
+        for (int i = 0; i <= MAX_PLAYERS-1; i++) {
             input_state *player_input = &state->input[i];
             input_update(player_input, i);     
 
-            // did a new player hit start?
-            if (player_input->active_actions & ACTION_START) {
-                add_new_player(i, state);
-                state->joined_players++;
-                new_player_count++;
-            }         
+            character *player = get_player_by_id(i);
+            if (player == NULL) {
+                // did a new player hit start?
+                if (player_input->active_actions & ACTION_START) {
+                    add_new_player(i, state);
+                    state->joined_players++;
+                    new_player_count++;
+                }         
+            }
         }
     
         if (new_player_count > 0) {
@@ -183,7 +186,7 @@ void engine_update(game_state_t *state, float dt) {
     }
     
     for (int i = 0; i < player_count; i++) {
-        character* player = get_player_at(i);
+        character* player = get_player_by_id(i);
         input_state *player_input = &state->input[i];
         input_update(player_input, i);     
         character_update(player, player_input, state->level.map_data, dt);
@@ -296,7 +299,7 @@ void add_new_player(int player_id, game_state_t *state)
 void add_new_enemies(game_state_t *state, int num_enemies_to_spawn)
 {
     // find furthest active player in the map
-    character *furthest_active_player = find_furthest_active_player();
+    character *furthest_active_player = find_furthest_active_player(NULL);
     camera_t *camera = get_camera_at(furthest_active_player->meta.id);
 
     int tile_start_idx = (int)((camera->x + camera->width + TILE_SIZE) / TILE_SIZE);
@@ -313,7 +316,7 @@ void add_new_enemies(game_state_t *state, int num_enemies_to_spawn)
 
 void determine_new_player_coordinates(character *new_player, level_t *level)
 {   
-    character *furthest = find_furthest_active_player();
+    character *furthest = find_furthest_active_player(new_player);
 
     float target_x = level->spawn_x;
     float target_y = level->spawn_y;
@@ -1041,13 +1044,15 @@ void load_stage_by_index(game_state_t *state, int index) {
     }
 }
 
-character* find_furthest_active_player() {
+character* find_furthest_active_player(character *self) {
     character *furthest_active_player = NULL;
     
     int player_count = get_player_count();
 
     for(int i = 0; i < player_count; i++) {
         character *player = get_player_at(i);
+        if (self != NULL && player == self) continue;
+        
         if (!furthest_active_player || furthest_active_player->x < player->x) {
             furthest_active_player = player;
         }

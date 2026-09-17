@@ -559,6 +559,18 @@ character* get_player_at(int index) {
     return &g_players.data[index];
 }
 
+character* get_player_by_id(int id) {
+    if (id < 0 || id >= g_players.count) return NULL;
+    int player_count = get_player_count();
+    for (int i = 0; i < player_count; i++){
+        character *player = get_player_at(i);
+        if (player->meta.id == id)
+            return player;
+    }
+
+    return NULL;
+}
+
 void init_player_registry(int initial_capacity) {
     g_players.capacity = initial_capacity;
     g_players.count = 0;

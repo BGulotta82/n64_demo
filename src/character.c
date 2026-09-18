@@ -198,9 +198,7 @@ void character_update(character *self, input_state *input, uint8_t *map_data, fl
     // =========================================================================
     // Modified check_character_collisions must NO LONGER inject "self->x += other->physics.vx * dt;"
     check_character_collisions(self, dt); 
-
-    check_view_boundaries(self);
-
+    
     // =========================================================================
     // STEP 4: CLEAN UP COYOTE STATE
     // =========================================================================
@@ -222,8 +220,7 @@ void check_view_boundaries(character *self) {
     if (!self || self->meta.is_enemy) return;
 
     camera_t *camera = get_camera_at(0);
-    if (!camera)
-        return;
+    if (!camera) return;
 
     // Define the absolute world boundaries of the current screen view window
     float screen_left  = camera->x;
@@ -233,23 +230,30 @@ void check_view_boundaries(character *self) {
     if (self->x < screen_left) {
         self->x = screen_left;
         
-        // Zero out leftward horizontal velocity so acceleration momentum breaks cleanly
+        // Zero out leftward horizontal velocity completely
         if (self->physics.vx < 0.0f) {
             self->physics.vx = 0.0f;
         }
+        
+        // FIX: Completely clear out sub-pixel forces and friction accumulators
+        // If your physics system uses structural force steps (like acceleration friction),
+        // reset them here to stop the engine from fighting the screen position on the next tick:
+        self->physics.ax = 0.0f; // Reset horizontal acceleration forces if present
     }
 
     // --- RIGHT SCREEN EDGE CONSTRAINT ---
-    // Factor in the character's bounding box width so their right side can't clip past
     float player_right_side = self->x + (float)self->meta.width;
 
     if (player_right_side > screen_right) {
         self->x = screen_right - (float)self->meta.width;
         
-        // Zero out rightward horizontal velocity so momentum breaks cleanly
+        // Zero out rightward horizontal velocity completely
         if (self->physics.vx > 0.0f) {
             self->physics.vx = 0.0f;
         }
+
+        // FIX: Clear out acceleration forces to match the left-side behavior
+        self->physics.ax = 0.0f; // Reset horizontal acceleration forces if present
     }
 }
 

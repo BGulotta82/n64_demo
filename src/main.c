@@ -38,8 +38,17 @@ int main(void) {
         // =========================================================================            
         camera_t *camera = get_camera_at(0);
         viewport_layout_t layout = viewport_configs[0][0];
-        if (camera != NULL)
+        if (camera != NULL) {
             camera_update(camera, (float)layout.width, (float)layout.height, dt);
+        
+            int player_count = get_player_count();
+            for(int i = 0; i < player_count; i++){
+                character *player = get_player_at(i);
+                check_view_boundaries(player);
+            }
+        }
+
+        
         // 6. Draw your scene passing down the valid locked pointer
         renderer_draw(disp, &state); 
     }

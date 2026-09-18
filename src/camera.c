@@ -67,44 +67,62 @@ void camera_init(camera_t *cam, float world_width, float world_height, float scr
 }
 
 
-void camera_update_split(camera_t *cam, float p_x, float p_y, float p_w, float p_h, float view_w, float view_h, facing_dir direction, float dt) {
+void camera_update(camera_t *cam, float view_w, float view_h, float dt) {
     cam->width = view_w;
     cam->height = view_h;
 
-    // 1. Calculate the standard dead-center baseline focal point
-    float desired_x = p_x + (p_w / 2.0f) - (view_w / 2.0f);
-    float desired_y = p_y + (p_h / 2.0f) - (view_h / 2.0f);
+    int player_count = get_player_count();
+    if (player_count <= 0) return;
 
-    // Forward-facing focus offset
-    float dynamic_bias;
-    if (view_w <= 320.0f) {
-        // Vertical Split-Screen Look-Ahead (Provides up to 100 pixels of lead space)
-        dynamic_bias = 100.0f; 
-    } else {
-        // Full Screen Look-Ahead (Provides up to 180 pixels of massive horizon vision)
-        dynamic_bias = 180.0f; 
+    // 1. Initialize extreme focal constraints
+    float min_x = 999999.0f, max_x = -999999.0f;
+    float min_y = 999999.0f, max_y = -999999.0f;
+
+    // 2. Loop through all existing characters to calculate the group bounding frame
+    for (int i = 0; i < player_count; i++) {
+        character *p = get_player_at(i);
+        if (!p) continue; // Safety check
+
+        float p_left   = p->x;
+        float p_right  = p->x + (float)p->meta.width;
+        float p_top    = p->y;
+        float p_bottom = p->y + (float)p->meta.height;
+
+        if (p_left < min_x)   min_x = p_left;
+        if (p_right > max_x)  max_x = p_right;
+        if (p_top < min_y)    min_y = p_top;
+        if (p_bottom > max_y) max_y = p_bottom;
     }
 
-    if (direction == FACING_LEFT) {
-        desired_x -= dynamic_bias;
-    } else if (direction == FACING_RIGHT) {
-        desired_x += dynamic_bias;
-    }
+    // 3. Compute total span distance spanned by the group
+    float group_width  = max_x - min_x;
+    float group_height = max_y - min_y;
 
-    // 2. Enforce absolute level boundaries safely without integer truncations
+    // 4. Calculate the standard dead-center focal baseline point based on group center
+    float center_x = min_x + (group_width / 2.0f);
+    float center_y = min_y + (group_height / 2.0f);
+
+    float desired_x = center_x - (view_w / 2.0f);
+    float desired_y = center_y - (view_h / 2.0f);
+
+    // 5. Enforce absolute level boundaries safely without integer truncations
     if (desired_x < 0.0f) desired_x = 0.0f;
     if (desired_x + view_w > cam->world_width)  desired_x = cam->world_width - view_w;
     if (desired_y < 0.0f) desired_y = 0.0f;
     if (desired_y + view_h > cam->world_height) desired_y = cam->world_height - view_h;
 
-    // 3. Smoothly glide using pure floating-point math
-    float error_x = desired_x - cam->x;
-    float error_y = desired_y - cam->y;
-    
-    float tracking_speed = 4.5f;
+    // 6. HARD LOCK GATE: Only allow smooth tracking glide if group fits completely on screen
+    // If the distance between the furthest players is larger than the viewport screen window,
+    // we refuse to shift the camera position, pinning it in place.
+    if (group_width <= view_w && group_height <= view_h) {
+        float error_x = desired_x - cam->x;
+        float error_y = desired_y - cam->y;
+        
+        float tracking_speed = 4.5f;
 
-    cam->x += error_x * tracking_speed * dt;
-    cam->y += error_y * tracking_speed * dt;
+        cam->x += error_x * tracking_speed * dt;
+        cam->y += error_y * tracking_speed * dt;
+    }
 }
 
 int get_camera_count(void) {
@@ -124,7 +142,7 @@ void init_camera_registry(int initial_capacity) {
 
 // Take a pointer. Use 'const' because we are only reading the data, not changing it.
 bool spawn_camera(const camera_t *new_camera) {
-    if (g_cameras.count >= g_cameras.capacity)
+    if (g_cameras.count > MAX_VIEWPORTS)
         return false;
 
     // Dereference the pointer (*) to copy the structural contents into the array

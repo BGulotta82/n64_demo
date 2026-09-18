@@ -152,81 +152,77 @@ void draw_dynamic_split_screen(const game_state_t *state) {
     int joined_players = state->joined_players; 
     if (joined_players <= 0) return;
     
-    int config_idx = joined_players - 1; 
     int player_count = get_player_count();
     int enemy_count = get_enemy_count();
 
+    camera_t *camera = get_camera_at(0);
+    viewport_layout_t layout = viewport_configs[0][0];
+
+    // --- N64 HARDWARE SCISSOR WINDOW GATE ---
+    rdpq_set_scissor(layout.screen_x, layout.screen_y, layout.screen_x + layout.width, layout.screen_y + layout.height);
+
+    // Pre-calculate floored camera coordinates once per viewport to save heavy FPU cycles
+    int cam_x_floor = (int)floorf(camera->x);
+    int cam_y_floor = (int)floorf(camera->y);
+
+    // =========================================================================
+    // PASS 1: BACKGROUND & WORLD TILEMAPS (Copy / Specialized Mode)
+    // =========================================================================
+    draw_map_tiles(&state->level, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, layout.width, layout.height);
+
+    // =========================================================================
+    // PASS 2: BATCHED SPRITE RENDERING (Standard Mode / Alpha Compare)
+    // =========================================================================
+    // We set the sprite mode ONCE here. No more state flipping inside the loops!
+    rdpq_set_mode_standard(); 
+    rdpq_mode_alphacompare(1); 
+
+    // Render All Players
     for (int i = 0; i < player_count; i++) {
-        character *current_player = get_player_at(i);
-        camera_t *camera = get_camera_at(current_player->meta.id);
-        viewport_layout_t layout = viewport_configs[config_idx][current_player->meta.id];
-
-        // --- N64 HARDWARE SCISSOR WINDOW GATE ---
-        rdpq_set_scissor(layout.screen_x, layout.screen_y, layout.screen_x + layout.width, layout.screen_y + layout.height);
-
-        // Pre-calculate floored camera coordinates once per viewport to save heavy FPU cycles
-        int cam_x_floor = (int)floorf(camera->x);
-        int cam_y_floor = (int)floorf(camera->y);
-
-        // =========================================================================
-        // PASS 1: BACKGROUND & WORLD SPRITES (Standard / Copy Mode)
-        // =========================================================================
-        // draw_map_tiles will set its own internal copy mode cleanly
-        draw_map_tiles(&state->level, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, layout.width, layout.height);
-
-        rdpq_sync_pipe();           
-        rdpq_set_mode_standard(); 
-        rdpq_mode_alphacompare(1); 
-
-        #ifdef DEBUG
-        float x_offset = 32.0f;
-        float y_offset = 32.0f;
-
-        debug_render_character_telemetry(current_player, layout.screen_x + x_offset, layout.screen_y + y_offset);
-        #endif
-
-        // Render Players
-        for (int p = 0; p < player_count; p++) {
-            character *player = get_player_at(p);
-            draw_single_character(player, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, layout.width, layout.height, p);
-        }
-
-        // Render Enemies
-        for (int e = 0; e < enemy_count; e++) {
-            character *enemy = get_enemy_at(e);
-            draw_single_character(enemy, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, layout.width, layout.height, e);
-        }
-
-        // =========================================================================
-        // PASS 2: BATCHED HITBOXES & DEBUG OVERLAYS (Fill Mode)
-        // =========================================================================
-        // We set Fill Mode ONCE here, completely eliminating state flipping inside the loop!
-        rdpq_set_mode_fill(RGBA32(0, 255, 0, 255)); // Default to player green
-
-        #ifdef DEBUG
-        // Draw Player Hitboxes
-        for (int p = 0; p < player_count; p++) {
-            character *player = get_player_at(p);
-
-            // Pass our pre-calculated camera variables to bypass inner floorf() calls
-            debug_draw_character_hitbox(player, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, RGBA32(0, 255, 0, 255));
-        }
-        #endif
-
-        // Switch color once for enemies
-        rdpq_set_mode_fill(RGBA32(255, 0, 0, 255));
-
-        // Draw Enemy Hitboxes
-        for (int e = 0; e < enemy_count; e++) {
-            character *enemy = get_enemy_at(e);
-
-            debug_draw_character_hitbox(enemy, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, RGBA32(255, 0, 0, 255));
-        }
-
-        // Clean up project hitboxes (Make sure this function doesn't fight over states)
-        debug_draw_projectiles_hitbox(cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y);
+        character *player = get_player_at(i);
+        draw_single_character(player, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, layout.width, layout.height);
     }
 
+    // Render All Enemies natively under the same hardware mode
+    for (int e = 0; e < enemy_count; e++) {
+        character *enemy = get_enemy_at(e);
+        draw_single_character(enemy, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, layout.width, layout.height);
+    }
+
+    // =========================================================================
+    // PASS 3: BATCHED DEBUG METRICS & HITBOX OVERLAYS (Conditional Compile)
+    // =========================================================================
+    #ifdef DEBUG
+    // 3a. Render UI text elements under standard mode first
+    float x_offset = 32.0f;
+    float y_offset = 32.0f;
+    for (int i = 0; i < player_count; i++) {
+        character *player = get_player_at(i);
+        debug_render_character_telemetry(player, layout.screen_x + x_offset, layout.screen_y + y_offset);
+    }
+
+    // 3b. Switch to Fill Mode EXACTLY TWICE: once for green, once for red
+    rdpq_set_mode_fill(RGBA32(0, 255, 0, 255)); // Player green
+    for (int p = 0; p < player_count; p++) {
+        character *player = get_player_at(p);
+        debug_draw_character_hitbox(player, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, RGBA32(0, 255, 0, 255));
+    }
+
+    #endif
+
+    // TODO: MOVE TO DEBUG STATEMENT ABOVE ONCE Animations are complete
+    rdpq_set_mode_fill(RGBA32(255, 0, 0, 255)); // Enemy red
+    for (int e = 0; e < enemy_count; e++) {
+        character *enemy = get_enemy_at(e);
+        debug_draw_character_hitbox(enemy, cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y, RGBA32(255, 0, 0, 255));
+    }
+
+    // Projectiles draw safely under their own internal color/fill modes
+    debug_draw_projectiles_hitbox(cam_x_floor, cam_y_floor, layout.screen_x, layout.screen_y);
+
+    // =========================================================================
+    // PASS 4: USER INTERFACE & HUD
+    // =========================================================================
     // Reset scissor to full-screen limits safely
     rdpq_set_scissor(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     rdpq_set_mode_standard(); 
@@ -235,6 +231,8 @@ void draw_dynamic_split_screen(const game_state_t *state) {
 }
 
 void debug_draw_character_hitbox(const character *chr, int cam_x, int cam_y, int off_x, int off_y, color_t color_rgba) {
+    if (!chr) return;
+
     int chr_x_floor = (int)floorf(chr->x);
     int chr_y_floor = (int)floorf(chr->y);
 
@@ -245,6 +243,14 @@ void debug_draw_character_hitbox(const character *chr, int cam_x, int cam_y, int
     int y1 = screen_y;
     int x2 = screen_x + chr->meta.width;
     int y2 = screen_y + chr->meta.height;
+
+
+    // If the entire hitbox bounding box is completely off-screen, discard it instantly
+    if (x2 < off_x || x1 > off_x + SCREEN_WIDTH ||
+        y2 < off_y || y1 > off_y + SCREEN_HEIGHT) {
+        return; // Skip rendering entirely!
+    }
+    // =========================================================================
 
     // Draw lines via optimized thin rectangles without touching RDP state registers
     rdpq_fill_rectangle(x1, y1, x2, y1 + 1);       // Top
@@ -260,10 +266,14 @@ void debug_draw_character_hitbox(const character *chr, int cam_x, int cam_y, int
         int sx2 = (int)floorf(hitbox.x2) - cam_x + off_x;
         int sy2 = (int)floorf(hitbox.y2) - cam_y + off_y;
 
-        rdpq_fill_rectangle(sx1, sy1, sx2, sy1 + 1);   // Top
-        rdpq_fill_rectangle(sx1, sy2 - 1, sx2, sy2);   // Bottom
-        rdpq_fill_rectangle(sx1, sy1, sx1 + 1, sy2);   // Left
-        rdpq_fill_rectangle(sx2 - 1, sy1, sx2, sy2);   // Right
+        // Apply a secondary culling guard for the sub-hitbox box parameters
+        if (sx2 >= off_x && sx1 <= off_x + SCREEN_WIDTH &&
+            sy2 >= off_y && sy1 <= off_y + SCREEN_HEIGHT) {
+            rdpq_fill_rectangle(sx1, sy1, sx2, sy1 + 1);   // Top
+            rdpq_fill_rectangle(sx1, sy2 - 1, sx2, sy2);   // Bottom
+            rdpq_fill_rectangle(sx1, sy1, sx1 + 1, sy2);   // Left
+            rdpq_fill_rectangle(sx2 - 1, sy1, sx2, sy2);   // Right
+        }
     }
 }
 
@@ -301,7 +311,7 @@ void debug_render_character_telemetry(const character *c, float x, float y) {
 }
 
 // Update your signature to accept the pre-calculated floored camera parameters
-void draw_single_character(const character *chr, int cam_x_floor, int cam_y_floor, int off_x, int off_y, int view_w, int view_h, int character_index) {
+void draw_single_character(const character *chr, int cam_x_floor, int cam_y_floor, int off_x, int off_y, int view_w, int view_h) {
     if (!chr) return;
         
     // --- MULTI-VIEWPORT INDEPENDENT INVINCIBILITY FLICKER ---

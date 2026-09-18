@@ -265,44 +265,38 @@ void add_new_player(int player_id, game_state_t *state)
     character_init(&new_player, type, false, player_id);
     determine_new_player_coordinates(&new_player, &state->level);
     spawn_player(&new_player);
-    
-    for(int i = 0; i <= player_id; i++) {
-        camera_t *camera = get_camera_at(i);
-        if (camera != NULL && i == player_id){
-            camera_init(
-                        camera,                  // Pass the address of this specific camera element
-                        (float)(MAP_WIDTH * TILE_SIZE),        // World map bounds metrics
-                        (float)(MAP_HEIGHT * TILE_SIZE), 
-                        (float)SCREEN_WIDTH,                 // Full screen window dimensions as baseline seed
-                        (float)SCREEN_HEIGHT, 
-                        new_player.x,         // Safe spawn origin values
-                        new_player.y
-                    );            
-            break;
-        }
 
-        if (camera == NULL) {
-            camera_t new_camera = {0};
-            camera_init(
-                        &new_camera,                  // Pass the address of this specific camera element
-                        (float)(MAP_WIDTH * TILE_SIZE),        // World map bounds metrics
-                        (float)(MAP_HEIGHT * TILE_SIZE), 
-                        (float)SCREEN_WIDTH,                 // Full screen window dimensions as baseline seed
-                        (float)SCREEN_HEIGHT, 
-                        i == player_id ? new_player.x : state->level.spawn_x,         // Safe spawn origin values
-                        i == player_id ? new_player.y : state->level.spawn_y
-                    );            
+    camera_t *camera = get_camera_at(0);
+
+    if (camera != NULL)
+    {
+        camera_init(
+            camera,                  // Pass the address of this specific camera element
+            (float)(MAP_WIDTH * TILE_SIZE),        // World map bounds metrics
+            (float)(MAP_HEIGHT * TILE_SIZE), 
+            (float)SCREEN_WIDTH,                 // Full screen window dimensions as baseline seed
+            (float)SCREEN_HEIGHT, 
+            new_player.x,         // Safe spawn origin values
+            new_player.y);
+    }
+    else 
+    {
+        camera_t new_camera = {0};
+        camera_init(
+            &new_camera,                  // Pass the address of this specific camera element
+            (float)(MAP_WIDTH * TILE_SIZE),        // World map bounds metrics
+            (float)(MAP_HEIGHT * TILE_SIZE), 
+            (float)SCREEN_WIDTH,                 // Full screen window dimensions as baseline seed
+            (float)SCREEN_HEIGHT, 
+            new_player.x,         // Safe spawn origin values
+            new_player.y);
             spawn_camera(&new_camera);
-        }
     }
 }
 
 void add_new_enemies(game_state_t *state, int num_enemies_to_spawn)
 {
-    // find furthest active player in the map
-    character *furthest_active_player = find_furthest_active_player(NULL);
-    camera_t *camera = get_camera_at(furthest_active_player->meta.id);
-
+    camera_t *camera = get_camera_at(0);
     int tile_start_idx = (int)((camera->x + camera->width + TILE_SIZE) / TILE_SIZE);
 
     for (int y = 0; y < MAP_HEIGHT; y++) {
@@ -317,7 +311,7 @@ void add_new_enemies(game_state_t *state, int num_enemies_to_spawn)
 
 void determine_new_player_coordinates(character *new_player, level_t *level)
 {   
-    character *furthest = find_furthest_active_player(new_player);
+    character *furthest = find_furthest_player(new_player);
 
     float target_x = level->spawn_x;
     float target_y = level->spawn_y;
@@ -370,24 +364,15 @@ void simulate_enemy_ai(character *enemy, const game_state_t *state, input_state 
     // Do NOT stop scanning a camera viewport just because its player died!
     int player_count = get_player_count();
 
-    for (int v = 0; v < player_count; v++) {
-        // If your camera system has a structural flag for active screens (e.g. split screen active)
-        // check it here. Otherwise, let it read the persistent layout data.
-        
-        character *player = get_player_at(v);
-        camera_t *camera = get_camera_at(player->meta.id);
+    camera_t *camera = get_camera_at(0);
+    float cam_left   = (float)camera->x;
+    float cam_right  = (float)(camera->x + camera->width);
+    float cam_top    = (float)camera->y;
+    float cam_bottom = (float)(camera->y + camera->height);
 
-        float cam_left   = (float)camera->x;
-        float cam_right  = (float)(camera->x + camera->width);
-        float cam_top    = (float)camera->y;
-        float cam_bottom = (float)(camera->y + camera->height);
-
-        // Check if the enemy overlaps this specific viewport window boundary layout
-        if (enemy->x >= (cam_left - buffer)  && enemy->x <= (cam_right + buffer) &&
-            enemy->y >= (cam_top - buffer)   && enemy->y <= (cam_bottom + buffer)) {
-            visible_in_any_viewport = true;
-            break; // Found it! Exit early to save tracking processing cycles
-        }
+    if (enemy->x >= (cam_left - buffer)  && enemy->x <= (cam_right + buffer) &&
+        enemy->y >= (cam_top - buffer)   && enemy->y <= (cam_bottom + buffer)) {
+        visible_in_any_viewport = true;
     }
 
     // If completely hidden across all active layout windows, drop simulation tasks
@@ -750,6 +735,7 @@ void check_projectile_collisions(game_state_t *state)
         else
         {
             int num_enemies = get_enemy_count();
+            camera_t *camera = get_camera_at(0);
 
             // PLAYER PROJECTILE VS ENEMIES
             for (int e = 0; e < num_enemies; e++)
@@ -764,9 +750,6 @@ void check_projectile_collisions(game_state_t *state)
                 // AABB Check
                 if (proj_x1 < e_x2 && proj_x2 > e_x1 && proj_y1 < e_y2 && proj_y2 > e_y1)
                 {                    
-                    int player_id = proj->meta.owner->meta.id;
-                    camera_t *camera = get_camera_at(player_id);
-
                     // 1. Get the player's world-space camera bounds
                     float cam_left   = (float)camera->x;
                     float cam_right  = (float)(camera->x + camera->width);
@@ -1045,8 +1028,8 @@ void load_stage_by_index(game_state_t *state, int index) {
     }
 }
 
-character* find_furthest_active_player(character *self) {
-    character *furthest_active_player = NULL;
+character* find_furthest_player(character *self) {
+    character *furthest_player = NULL;
     
     int player_count = get_player_count();
 
@@ -1054,10 +1037,10 @@ character* find_furthest_active_player(character *self) {
         character *player = get_player_at(i);
         if (self != NULL && player == self) continue;
         
-        if (!furthest_active_player || furthest_active_player->x < player->x) {
-            furthest_active_player = player;
+        if (!furthest_player || furthest_player->x < player->x) {
+            furthest_player = player;
         }
     }
 
-    return furthest_active_player;
+    return furthest_player;
 }

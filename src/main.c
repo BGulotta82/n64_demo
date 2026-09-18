@@ -35,35 +35,11 @@ int main(void) {
 
         // =========================================================================
         // 5. GATHER TRACKING DATA & UPDATE DECOUPLED VIEWP_CONFIG CAMERAS
-        // =========================================================================
-        
-        // Count how many players are currently alive in the match
-        int player_count = get_player_count(); 
-        int joined_players = state.joined_players; 
-        
-        int config_idx = joined_players - 1; 
-
-        for (int i = 0; i < player_count; i++) {
-            character *player = get_player_at(i);
-            camera_t *camera = get_camera_at(player->meta.id);
-                
-            // Look up what screen dimensions this specific quadrant/split should look like
-            viewport_layout_t layout = viewport_configs[config_idx][player->meta.id];
-            
-            // Track this player's camera completely independently of the other slots!
-            camera_update_split(
-                camera, // Pass this specific player id camera instance
-                player->x,     // Target player exact position vectors
-                player->y,
-                (float)player->meta.width, 
-                (float)player->meta.height,
-                (float)layout.width,               // Pass dynamic viewport screen constraints
-                (float)layout.height, 
-                player->physics.facing_direction,
-                dt
-            );
-        }
-
+        // =========================================================================            
+        camera_t *camera = get_camera_at(0);
+        viewport_layout_t layout = viewport_configs[0][0];
+        if (camera != NULL)
+            camera_update(camera, (float)layout.width, (float)layout.height, dt);
         // 6. Draw your scene passing down the valid locked pointer
         renderer_draw(disp, &state); 
     }

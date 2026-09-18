@@ -14,7 +14,6 @@
 */   
 extern float physics_constants[NUMBER_OF_CHARACTER_TYPES][9];
 
-
 void character_init(character *character, character_type type, bool is_enemy, int id);
 void character_update(character *character, input_state *input, uint8_t *map_data, float dt);
 void check_no_input(character *character, input_state *input);
@@ -29,6 +28,7 @@ void handle_move_right(character *character, input_state *input, float dt);
 void move_character(character *character, float dt);
 void handle_jump(character *character, input_state *input);
 void handle_attack(character *character, input_state *input);
+void check_view_boundaries(character *self);
 
 int get_enemy_count(void);
 character* get_enemy_at(int index);
@@ -44,7 +44,6 @@ void init_player_registry(int initial_capacity);
 bool spawn_player(const character *new_player);
 void destroy_player(int index);
 void cleanup_player_registry(void);
-
 
 float approach(float current, float target, float step);
  #endif // CHARACTER_H

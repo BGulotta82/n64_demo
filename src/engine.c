@@ -161,17 +161,17 @@ void engine_update(game_state_t *state, float dt) {
     if (joined_players < MAX_PLAYERS) {
         int new_player_count = 0;
 
-        for (int i = 0; i <= MAX_PLAYERS-1; i++) {
+        for (int i = 0; i < MAX_PLAYERS; i++) {
             input_state *player_input = &state->input[i];
             input_update(player_input, i);     
 
             character *player = get_player_by_id(i);
-            if (player == NULL) {
+            if (player == NULL && !state->slot_used[i]) {
                 // did a new player hit start?
                 if (player_input->active_actions & ACTION_START) {
                     add_new_player(i, state);
                     state->joined_players++;
-                    new_player_count++;
+                    new_player_count++;                    
                 }         
             }
         }
@@ -185,7 +185,7 @@ void engine_update(game_state_t *state, float dt) {
         }
     }
     
-    for (int i = 0; i < player_count; i++) {
+    for (int i = 0; i < MAX_PLAYERS; i++) {
         character* player = get_player_by_id(i);
         input_state *player_input = &state->input[i];
         input_update(player_input, i);     
@@ -259,6 +259,7 @@ void engine_update(game_state_t *state, float dt) {
 
 void add_new_player(int player_id, game_state_t *state)
 {
+    state->slot_used[player_id] = true;
     character new_player = {0};
     //character_type type = rand() % 4;
     character_type type = KNIGHT;
@@ -266,32 +267,6 @@ void add_new_player(int player_id, game_state_t *state)
     determine_new_player_coordinates(&new_player, &state->level);
     spawn_player(&new_player);
 
-    camera_t *camera = get_camera_at(0);
-
-    if (camera != NULL)
-    {
-        camera_init(
-            camera,                  // Pass the address of this specific camera element
-            (float)(MAP_WIDTH * TILE_SIZE),        // World map bounds metrics
-            (float)(MAP_HEIGHT * TILE_SIZE), 
-            (float)SCREEN_WIDTH,                 // Full screen window dimensions as baseline seed
-            (float)SCREEN_HEIGHT, 
-            new_player.x,         // Safe spawn origin values
-            new_player.y);
-    }
-    else 
-    {
-        camera_t new_camera = {0};
-        camera_init(
-            &new_camera,                  // Pass the address of this specific camera element
-            (float)(MAP_WIDTH * TILE_SIZE),        // World map bounds metrics
-            (float)(MAP_HEIGHT * TILE_SIZE), 
-            (float)SCREEN_WIDTH,                 // Full screen window dimensions as baseline seed
-            (float)SCREEN_HEIGHT, 
-            new_player.x,         // Safe spawn origin values
-            new_player.y);
-            spawn_camera(&new_camera);
-    }
 }
 
 void add_new_enemies(game_state_t *state, int num_enemies_to_spawn)
@@ -975,11 +950,14 @@ void load_stage_by_index(game_state_t *state, int index) {
     }
     
     if (previous_state == STATE_GAME_OVER ||
-        previous_state == STATE_WAITING_TO_START){
+        previous_state == STATE_WAITING_TO_START) {
         cleanup_enemy_registry();
         cleanup_camera_registry();
         init_enemy_registry(16);
         init_camera_registry(MAX_VIEWPORTS);
+        for(int i = 0; i < MAX_PLAYERS; i++){
+            state->slot_used[i] = false;
+        }        
     }
 
     state->level_index = index;
@@ -1026,6 +1004,34 @@ void load_stage_by_index(game_state_t *state, int index) {
     {
         state->match_state = STATE_STAGE_INTRO;
     }
+
+    camera_t *camera = get_camera_at(0);
+
+    if (camera != NULL)
+    {
+        camera_init(
+            camera,                  // Pass the address of this specific camera element
+            (float)(MAP_WIDTH * TILE_SIZE),        // World map bounds metrics
+            (float)(MAP_HEIGHT * TILE_SIZE), 
+            (float)SCREEN_WIDTH,                 // Full screen window dimensions as baseline seed
+            (float)SCREEN_HEIGHT, 
+            state->level.spawn_x,         // Safe spawn origin values
+            state->level.spawn_y);
+    }
+    else 
+    {
+        camera_t new_camera = {0};
+        camera_init(
+            &new_camera,                  // Pass the address of this specific camera element
+            (float)(MAP_WIDTH * TILE_SIZE),        // World map bounds metrics
+            (float)(MAP_HEIGHT * TILE_SIZE), 
+            (float)SCREEN_WIDTH,                 // Full screen window dimensions as baseline seed
+            (float)SCREEN_HEIGHT, 
+            state->level.spawn_x,         // Safe spawn origin values
+            state->level.spawn_y);
+            spawn_camera(&new_camera);
+    }
+
 }
 
 character* find_furthest_player(character *self) {

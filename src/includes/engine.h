@@ -12,7 +12,6 @@
 #include <math.h>
 #include <stdbool.h>
 
-
 void engine_init(game_state_t *state);
 void engine_update(game_state_t *state, float dt);
 void add_new_player(int i, game_state_t *state);

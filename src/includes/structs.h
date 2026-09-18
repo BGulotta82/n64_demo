@@ -144,6 +144,7 @@ typedef struct {
 typedef struct {
     int frame;
     input_state input[MAX_PLAYERS];
+    bool slot_used[MAX_PLAYERS];
     level_t level; 
     int level_index; 
     float level_timer;

@@ -601,7 +601,6 @@ character* get_player_at(int index) {
 }
 
 character* get_player_by_id(int id) {
-    if (id < 0 || id >= g_players.count) return NULL;
     int player_count = get_player_count();
     for (int i = 0; i < player_count; i++){
         character *player = get_player_at(i);
